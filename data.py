@@ -1,9 +1,11 @@
 import os
 import zipfile
+import numpy as np
 
 import pytorch_lightning as pl
 import requests
 from torch.utils.data import DataLoader
+from torch.utils.data import Subset
 from torchvision import transforms as T
 from torchvision.datasets import CIFAR10
 from tqdm import tqdm
@@ -12,7 +14,7 @@ from tqdm import tqdm
 class CIFAR10Data(pl.LightningDataModule):
     def __init__(self):
         super().__init__()
-        # self.hparams = {"data_dir": "/data/cifar10/", "batch_size": 32, "num_workers": 1}
+#        self.hparams = args
         self.mean = (0.4914, 0.4822, 0.4465)
         self.std = (0.2471, 0.2435, 0.2616)
 
@@ -72,11 +74,14 @@ class CIFAR10Data(pl.LightningDataModule):
                 T.Normalize(self.mean, self.std),
             ]
         )
-        dataset = CIFAR10(root="/data/cifar10/", train=False, transform=transform, download=True)
+        dataset = CIFAR10(root="/home/nadia_dobreva/PyTorch_CIFAR10/data/cifar10/", train=False, transform=transform, download=True)
+        subset_size = 20
+        rand_start = 7037 #np.random.randint(0,dataset.__len__())
+        small_dataset = Subset(dataset, range(rand_start, rand_start + subset_size))
         dataloader = DataLoader(
-            dataset,
-            batch_size=32,
-            num_workers=1,
+            small_dataset,
+            batch_size=subset_size,
+            num_workers=4,
             drop_last=True,
             pin_memory=True,
         )
