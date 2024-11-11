@@ -40,7 +40,8 @@ class SimpleProblem:
         for i, n in enumerate(bitstring):
             if n:
                 ensemble.append(self.model_lib[i])
-        score = self.evaluator.run(ensemble)
+        norm_weights = [float(i)/sum(bitstring) for i in bitstring]
+        score = self.evaluator.run(ensemble, norm_weights)
         score = np.mean(score)
         return -score
 
@@ -51,21 +52,25 @@ class Evaluator:
         self.dataset = CIFAR10Data().test_dataloader()
         self.score_fn = scoring_fn
 
-    def run(self, models, pipeline=None):
+    def run(self, models, weights, pipeline=None):
         scores = []
         for images, lbl in self.dataset:
             if pipeline is not None:
                 images, lbl = pipeline(images, lbl)
             if len(models) > 1:
                 all_outputs = []
-                for m in models:
-                    model_pred = m(images)
-                    all_outputs.append(model_pred.detach().numpy())
-                output = np.mean(all_outputs, axis=0)
+                for i, m in enumerate(models):
+                    model_pred = m(images).detach().numpy()
+                    model_weights = np.empty_like(model_pred)
+                    model_weights.fill(weights[i])
+                    all_outputs.append(model_pred * model_weights)
+                output = sum(all_outputs)
             else:
                 output = models[0](images)
 
             pred = torch.argmax(torch.Tensor(output), axis=1)
+#            print('pred', pred)
+#            print(lbl)
             scores.append(self.score_fn(target=lbl, preds=pred))
 
         return scores
@@ -74,7 +79,7 @@ def initialize_population(population_size, N_models, history):
     population = []
     index = 0
     while len(population) < population_size:
-        sequence = np.random.randint(0, high=2, size=N_models)
+        sequence = np.random.uniform(0.0, high=1.0, size=N_models)
         if not np.all(sequence==history, axis=2).any():
             history[0, index] = sequence
             population.append(Candidate(sequence))
@@ -88,17 +93,21 @@ def reproduce(population, history, g, population_size, N_models):
         parents = np.random.choice(population, size=2, replace=False)
         cX_point = np.random.randint(1, N_models-1)
 
-        child1 = np.zeros(N_models, dtype=int)
+        child1 = np.zeros(N_models, dtype=float)
         child1[:cX_point] = parents[0].bitstring[:cX_point]
         child1[cX_point:] = parents[1].bitstring[cX_point:]
 
-        child1 = (child1 + np.random.binomial(size=N_models, n=1, p= 0.1))%2
+        if np.random.uniform() < 0.1:
+            modified_model = np.random.randint(0, N_models)
+            child1[modified_model] = np.random.uniform()
 
-        child2 = np.zeros(N_models, dtype=int)
+        child2 = np.zeros(N_models, dtype=float)
         child2[:cX_point] = parents[1].bitstring[:cX_point]
         child2[cX_point:] = parents[0].bitstring[cX_point:]
 
-        child2 = (child2 + np.random.binomial(size=N_models, n=1, p= 0.1))%2
+        if np.random.uniform() < 0.1:
+            modified_model = np.random.randint(0, N_models)
+            child2[modified_model] = np.random.uniform()
 
         if not (np.all(child1==history, axis=2).any()):
             history[g, index] = child1
@@ -152,8 +161,9 @@ def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
     history = np.zeros((n_gen+1, population_size, N_models))
     population, history = initialize_population(population_size, N_models, history)
     population = evaluate_population(population, problem)
-    print('population initialized')
-
+    print("Init pop:")
+    for p in population:
+        print(p.bitstring, p.fitness)
     time_per_epoch = 0
     for g in range(n_gen):
         start_epoch = time.time()
@@ -164,7 +174,7 @@ def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
         time_per_epoch += (end_epoch - start_epoch)
         print("Current population:")
         for p in population:
-            print(p.bitstring)
+            print(p.bitstring, p.fitness)
         # logging.info(f"Generation: {g+1}, best fitness: {best_candidate.fitness}, ensemble: {best_candidate.bitstring}")
         print((f"Generation: {g+1}, best fitness: {best_candidate.fitness}, ensemble: {best_candidate.bitstring}"))
         print("-"*80)
