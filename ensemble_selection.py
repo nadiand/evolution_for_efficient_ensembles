@@ -42,17 +42,18 @@ class SimpleProblem:
                 ensemble.append(self.model_lib[i])
         norm_weights = [float(i)/sum(bitstring) for i in bitstring]
         score = self.evaluator.run(ensemble, norm_weights)
-        score = np.mean(score)
         return -score
 
 class Evaluator:
     def __init__(
-        self, scoring_fn, pseudo_labels=False
+        self, scoring_fn, penalty, pseudo_labels=False
     ):
         self.dataset = CIFAR10Data().test_dataloader()
         self.score_fn = scoring_fn
+        self.penalty = penalty
 
     def run(self, models, weights, pipeline=None):
+        penalty = np.count_nonzero(weights)*self.penalty
         scores = []
         for images, lbl in self.dataset:
             if pipeline is not None:
@@ -64,7 +65,7 @@ class Evaluator:
                     model_weights = np.empty_like(model_pred)
                     model_weights.fill(weights[i])
                     all_outputs.append(model_pred * model_weights)
-                output = sum(all_outputs)
+                output = sum(all_outputs) - penalty
             else:
                 output = models[0](images)
 
@@ -73,20 +74,22 @@ class Evaluator:
 #            print(lbl)
             scores.append(self.score_fn(target=lbl, preds=pred))
 
-        return scores
+        score = np.mean(scores) - penalty
+        return score
 
-def initialize_population(population_size, N_models, history):
+def initialize_population(population_size, N_models, threshold, history):
     population = []
     index = 0
     while len(population) < population_size:
         sequence = np.random.uniform(0.0, high=1.0, size=N_models)
+        sequence = [s if s>threshold else 0 for s in sequence]
         if not np.all(sequence==history, axis=2).any():
             history[0, index] = sequence
             population.append(Candidate(sequence))
             index += 1
     return population, history
 
-def reproduce(population, history, g, population_size, N_models):
+def reproduce(population, history, g, population_size, N_models, threshold):
     new_population = []
     index = 0
     while index < population_size:
@@ -99,7 +102,8 @@ def reproduce(population, history, g, population_size, N_models):
 
         if np.random.uniform() < 0.1:
             modified_model = np.random.randint(0, N_models)
-            child1[modified_model] = np.random.uniform()
+            new_weight = np.random.uniform()
+            child1[modified_model] = new_weight if new_weight > threshold else 0
 
         child2 = np.zeros(N_models, dtype=float)
         child2[:cX_point] = parents[1].bitstring[:cX_point]
@@ -107,7 +111,8 @@ def reproduce(population, history, g, population_size, N_models):
 
         if np.random.uniform() < 0.1:
             modified_model = np.random.randint(0, N_models)
-            child2[modified_model] = np.random.uniform()
+            new_weight = np.random.uniform()
+            child2[modified_model] = new_weight if new_weight > threshold else 0
 
         if not (np.all(child1==history, axis=2).any()):
             history[g, index] = child1
@@ -149,17 +154,19 @@ def select(parents, offspring, population_size):
 def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
         use_both_lighting=False, use_pseudo_label=False, augment_mask=True):
 
-    evaluator = Evaluator(scoring_fn, use_pseudo_label)
+    penalty = 0.01
+    evaluator = Evaluator(scoring_fn, penalty, use_pseudo_label)
     problem = SimpleProblem(model_lib, evaluator, pipeline, augment_mask, use_both_lighting)
 
-    n_gen = 10
-    population_size = 5
+    n_gen = 20
+    population_size = 20
     N_models = len(model_lib)
+    threshold = 0.1
 
     np.random.seed(seed=seed+2)
 
     history = np.zeros((n_gen+1, population_size, N_models))
-    population, history = initialize_population(population_size, N_models, history)
+    population, history = initialize_population(population_size, N_models, threshold, history)
     population = evaluate_population(population, problem)
     print("Init pop:")
     for p in population:
@@ -167,7 +174,7 @@ def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
     time_per_epoch = 0
     for g in range(n_gen):
         start_epoch = time.time()
-        offspring, history = reproduce(population, history, g+1, population_size, N_models)
+        offspring, history = reproduce(population, history, g+1, population_size, N_models, threshold)
         offspring = evaluate_population(offspring, problem)
         best_candidate, population = select_with_elitism(population, offspring, population_size)
         end_epoch = time.time()
@@ -181,6 +188,9 @@ def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
 
     print(f"Total time it took to do {n_gen} epochs: {time_per_epoch}")
     print(f"Time it took to do one epoch: {time_per_epoch/n_gen}")
+
+    fitness_no_penalty = best_candidate.fitness - penalty*np.count_nonzero(best_candidate.bitstring)
+    print(f"Best fitness without penalty: {fitness_no_penalty}")
 
     return best_candidate.bitstring
 
@@ -225,14 +235,15 @@ def load_models():
     classifiers.append(mobilenet_v2_model)
 
     # Evaluating the individual models to have a baseline of performance
-    # accuracy = Accuracy(task='multiclass', num_classes=10)
-    # dataset = CIFAR10Data().test_dataloader()
-    # for i, c in enumerate(classifiers):
-    #     scores = []
-    #     for images, lbl in dataset:
-    #         model_pred = c(images)
-    #         scores.append(accuracy(target=lbl, preds=model_pred))
-    #     print(f'model {i} has accuracy {np.mean(scores)}')
+#    accuracy = Accuracy(task='multiclass', num_classes=10)
+#    dataset = CIFAR10Data().test_dataloader()
+#    for i, c in enumerate(classifiers):
+#        scores = []
+#        for images, lbl in dataset:
+#            model_pred = c(images)
+#            scores.append(accuracy(target=lbl, preds=model_pred))
+#        print(f'model {i} has accuracy {np.mean(scores)}')
+
 
     # Results:
     # model 0 has accuracy 0.9406049847602844
