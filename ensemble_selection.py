@@ -14,13 +14,13 @@ from torchmetrics import Accuracy
 
 # Candidate class that contains the parameters and order
 class Candidate:
-    def __init__(self, bitstring):
-        self.bitstring = bitstring
+    def __init__(self, voting_weights):
+        self.voting_weights = voting_weights
         self.fitness = None
 
     # Evaluates the candidates parameters in the given order
     def __call__(self):
-        return self.bitstring
+        return self.voting_weights
 
     def set_fitness(self, fitness):
         self.fitness = fitness
@@ -35,12 +35,12 @@ class SimpleProblem:
         self.augment_mask = augment_mask
         self.use_both_lighting = use_both_lighting
 
-    def __call__(self, bitstring):
+    def __call__(self, voting_weights):
         ensemble = []
-        for i, n in enumerate(bitstring):
+        for i, n in enumerate(voting_weights):
             if n:
                 ensemble.append(self.model_lib[i])
-        norm_weights = [float(i)/sum(bitstring) for i in bitstring]
+        norm_weights = [float(i)/sum(voting_weights) for i in voting_weights]
         score = self.evaluator.run(ensemble, norm_weights)
         return -score
 
@@ -111,15 +111,15 @@ def reproduce(population, history, g, population_size, N_models, threshold):
         cX_point = np.random.randint(1, N_models-1)
 
         child1 = np.zeros(N_models, dtype=float)
-        child1[:cX_point] = parents[0].bitstring[:cX_point]
-        child1[cX_point:] = parents[1].bitstring[cX_point:]
+        child1[:cX_point] = parents[0].voting_weights[:cX_point]
+        child1[cX_point:] = parents[1].voting_weights[cX_point:]
 
         if np.random.uniform() < 0.1:
             child1 = mutate(child1, "all", threshold)
 
         child2 = np.zeros(N_models, dtype=float)
-        child2[:cX_point] = parents[1].bitstring[:cX_point]
-        child2[cX_point:] = parents[0].bitstring[cX_point:]
+        child2[:cX_point] = parents[1].voting_weights[:cX_point]
+        child2[cX_point:] = parents[0].voting_weights[cX_point:]
 
         if np.random.uniform() < 0.1:
             child2 = mutate(child2, "all", threshold)
@@ -180,7 +180,7 @@ def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
     population = evaluate_population(population, problem)
     print("Init pop:")
     for p in population:
-        print(p.bitstring, p.fitness)
+        print(p.voting_weights, p.fitness)
     time_per_epoch = 0
     for g in range(n_gen):
         start_epoch = time.time()
@@ -191,18 +191,18 @@ def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
         time_per_epoch += (end_epoch - start_epoch)
         print("Current population:")
         for p in population:
-            print(p.bitstring, p.fitness)
-        # logging.info(f"Generation: {g+1}, best fitness: {best_candidate.fitness}, ensemble: {best_candidate.bitstring}")
-        print((f"Generation: {g+1}, best fitness: {best_candidate.fitness}, ensemble: {best_candidate.bitstring}"))
+            print(p.voting_weights, p.fitness)
+        # logging.info(f"Generation: {g+1}, best fitness: {best_candidate.fitness}, ensemble: {best_candidate.voting_weights}")
+        print((f"Generation: {g+1}, best fitness: {best_candidate.fitness}, ensemble: {best_candidate.voting_weights}"))
         print("-"*80)
 
     print(f"Total time it took to do {n_gen} epochs: {time_per_epoch}")
     print(f"Time it took to do one epoch: {time_per_epoch/n_gen}")
 
-    fitness_no_penalty = best_candidate.fitness - penalty*np.count_nonzero(best_candidate.bitstring)
+    fitness_no_penalty = best_candidate.fitness - penalty*np.count_nonzero(best_candidate.voting_weights)
     print(f"Best fitness without penalty: {fitness_no_penalty}")
 
-    return best_candidate.bitstring
+    return best_candidate.voting_weights
 
 
 def load_models():
@@ -270,6 +270,6 @@ def load_models():
 
 if __name__ == "__main__":
 
-    best_bitstring = select_ensemble(model_lib=load_models(), scoring_fn=Accuracy(task='multiclass', num_classes=10), seed=0, pipeline = None,
+    best_voting_weights = select_ensemble(model_lib=load_models(), scoring_fn=Accuracy(task='multiclass', num_classes=10), seed=0, pipeline = None,
         use_both_lighting=False, use_pseudo_label=False, augment_mask=True)
-    print(best_bitstring)
+    print(best_voting_weights)
