@@ -40,7 +40,7 @@ class SimpleProblem:
         for i, n in enumerate(voting_weights):
             if n:
                 ensemble.append(self.model_lib[i])
-        norm_weights = [float(i)/sum(voting_weights) for i in voting_weights]
+        norm_weights = [float(w)/sum(voting_weights) for w in voting_weights]
         score = self.evaluator.run(ensemble, norm_weights)
         return -score
 
