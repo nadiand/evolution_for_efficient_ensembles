@@ -89,6 +89,20 @@ def initialize_population(population_size, N_models, threshold, history):
             index += 1
     return population, history
 
+def mutate(ensemble, mutation_type, threshold):
+    N_models = len(ensemble)
+    if mutation_type == "all":
+        factor = np.random.uniform(-0.2, 0.2, size=N_models)
+        ensemble += factor
+        ensemble = [w if w>threshold else 0 for w in ensemble]
+    elif mutation_type == "one":
+        modified_model = np.random.randint(0, N_models)
+        new_weight = np.random.uniform()
+        ensemble[modified_model] = new_weight if new_weight > threshold else 0
+
+    return ensemble
+
+
 def reproduce(population, history, g, population_size, N_models, threshold):
     new_population = []
     index = 0
@@ -101,18 +115,14 @@ def reproduce(population, history, g, population_size, N_models, threshold):
         child1[cX_point:] = parents[1].bitstring[cX_point:]
 
         if np.random.uniform() < 0.1:
-            modified_model = np.random.randint(0, N_models)
-            new_weight = np.random.uniform()
-            child1[modified_model] = new_weight if new_weight > threshold else 0
+            child1 = mutate(child1, "all", threshold)
 
         child2 = np.zeros(N_models, dtype=float)
         child2[:cX_point] = parents[1].bitstring[:cX_point]
         child2[cX_point:] = parents[0].bitstring[cX_point:]
 
         if np.random.uniform() < 0.1:
-            modified_model = np.random.randint(0, N_models)
-            new_weight = np.random.uniform()
-            child2[modified_model] = new_weight if new_weight > threshold else 0
+            child2 = mutate(child2, "all", threshold)
 
         if not (np.all(child1==history, axis=2).any()):
             history[g, index] = child1
