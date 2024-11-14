@@ -1,12 +1,15 @@
 import os
 import zipfile
 import numpy as np
+import random
+import torch
 
 import pytorch_lightning as pl
 import requests
 from torch.utils.data import DataLoader
 from torch.utils.data import Subset
 from torchvision import transforms as T
+from torchvision.transforms import v2
 from torchvision.datasets import CIFAR10
 from tqdm import tqdm
 
@@ -68,8 +71,12 @@ class CIFAR10Data(pl.LightningDataModule):
         return dataloader
 
     def val_dataloader(self):
+        random.seed(12345)
+        torch.manual_seed(12345)
+        np.random.seed(12345)
         transform = T.Compose(
             [
+                v2.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 2)),
                 T.ToTensor(),
                 T.Normalize(self.mean, self.std),
             ]
