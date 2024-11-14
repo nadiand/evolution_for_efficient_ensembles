@@ -65,7 +65,7 @@ class Evaluator:
                     model_weights = np.empty_like(model_pred)
                     model_weights.fill(weights[i])
                     all_outputs.append(model_pred * model_weights)
-                output = sum(all_outputs) - penalty
+                output = sum(all_outputs)
             else:
                 output = models[0](images)
 
