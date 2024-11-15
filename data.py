@@ -3,6 +3,7 @@ import zipfile
 import numpy as np
 import random
 import torch
+from itertools import chain
 
 import pytorch_lightning as pl
 import requests
@@ -85,14 +86,24 @@ class CIFAR10Data(pl.LightningDataModule):
         subset_size = 20
         rand_start = 7037 #np.random.randint(0,dataset.__len__())
         small_dataset = Subset(dataset, range(rand_start, rand_start + subset_size))
-        dataloader = DataLoader(
+        val_dataloader = DataLoader(
             small_dataset,
             batch_size=subset_size,
             num_workers=4,
             drop_last=True,
             pin_memory=True,
         )
-        return dataloader
+
+        rest_of_dataset = Subset(dataset, list(chain(range(0, rand_start), range(rand_start+subset_size+1, len(dataset)))))
+        test_dataloader = DataLoader(
+            rest_of_dataset,
+            batch_size=128,
+            num_workers=4,
+            drop_last=True,
+            pin_memory=True,
+        )
+
+        return val_dataloader, test_dataloader
 
     def test_dataloader(self):
         return self.val_dataloader()
