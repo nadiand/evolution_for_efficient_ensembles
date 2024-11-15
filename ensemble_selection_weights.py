@@ -35,27 +35,31 @@ class SimpleProblem:
         self.augment_mask = augment_mask
         self.use_both_lighting = use_both_lighting
 
-    def __call__(self, voting_weights):
+    def __call__(self, voting_weights, eval_type):
         ensemble = []
         for i, n in enumerate(voting_weights):
             if n:
                 ensemble.append(self.model_lib[i])
         norm_weights = [float(w)/sum(voting_weights) for w in voting_weights]
-        score = self.evaluator.run(ensemble, norm_weights)
+        score = self.evaluator.run(ensemble, norm_weights, eval_type)
         return -score
 
 class Evaluator:
     def __init__(
         self, scoring_fn, penalty, pseudo_labels=False
     ):
-        self.dataset = CIFAR10Data().test_dataloader()
+        self.dataset, self.testset = CIFAR10Data().test_dataloader()
         self.score_fn = scoring_fn
         self.penalty = penalty
 
-    def run(self, models, weights, pipeline=None):
+    def run(self, models, weights, eval_type, pipeline=None):
         penalty = np.count_nonzero(weights)*self.penalty
         scores = []
-        for images, lbl in self.dataset:
+        if eval_type == 'validation':
+            dataset = self.dataset
+        else:
+            dataset = self.testset
+        for images, lbl in dataset:
             if pipeline is not None:
                 images, lbl = pipeline(images, lbl)
             if len(models) > 1:
@@ -137,9 +141,9 @@ def reproduce(population, history, g, population_size, N_models, threshold):
     return new_population, history
 
 
-def evaluate_population(population, problem):
+def evaluate_population(population, problem, eval_type):
     for candidate in population:
-        fitness = problem(candidate())
+        fitness = problem(candidate(), eval_type)
         candidate.set_fitness(fitness)
     return population
 
@@ -164,20 +168,20 @@ def select(parents, offspring, population_size):
 def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
         use_both_lighting=False, use_pseudo_label=False, augment_mask=True):
 
-    penalty = 0.01
+    penalty = 0 #0.01
     evaluator = Evaluator(scoring_fn, penalty, use_pseudo_label)
     problem = SimpleProblem(model_lib, evaluator, pipeline, augment_mask, use_both_lighting)
 
     n_gen = 20
     population_size = 20
     N_models = len(model_lib)
-    threshold = 0.1
+    threshold = 0 #0.1
 
     np.random.seed(seed=seed+2)
 
     history = np.zeros((n_gen+1, population_size, N_models))
     population, history = initialize_population(population_size, N_models, threshold, history)
-    population = evaluate_population(population, problem)
+    population = evaluate_population(population, problem, 'validation')
     print("Init pop:")
     for p in population:
         print(p.voting_weights, p.fitness)
@@ -185,7 +189,7 @@ def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
     for g in range(n_gen):
         start_epoch = time.time()
         offspring, history = reproduce(population, history, g+1, population_size, N_models, threshold)
-        offspring = evaluate_population(offspring, problem)
+        offspring = evaluate_population(offspring, problem, 'validation')
         best_candidate, population = select_with_elitism(population, offspring, population_size)
         end_epoch = time.time()
         time_per_epoch += (end_epoch - start_epoch)
@@ -196,10 +200,11 @@ def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
         print((f"Generation: {g+1}, best fitness: {best_candidate.fitness}, ensemble: {best_candidate.voting_weights}"))
         print("-"*80)
 
+    best_candidate = evaluate_population([best_candidate], problem, 'test')[0]
+    fitness_no_penalty = best_candidate.fitness - penalty*np.count_nonzero(best_candidate.voting_weights)
+
     print(f"Total time it took to do {n_gen} epochs: {time_per_epoch}")
     print(f"Time it took to do one epoch: {time_per_epoch/n_gen}")
-
-    fitness_no_penalty = best_candidate.fitness - penalty*np.count_nonzero(best_candidate.voting_weights)
     print(f"Best fitness without penalty: {fitness_no_penalty}")
 
     return best_candidate.voting_weights
@@ -246,10 +251,10 @@ def load_models():
 
     # Evaluating the individual models to have a baseline of performance
 #    accuracy = Accuracy(task='multiclass', num_classes=10)
-#    dataset = CIFAR10Data().test_dataloader()
+#    val_dataset, test_dataset = CIFAR10Data().test_dataloader()
 #    for i, c in enumerate(classifiers):
 #        scores = []
-#        for images, lbl in dataset:
+#        for images, lbl in test_dataset:
 #            model_pred = c(images)
 #            scores.append(accuracy(target=lbl, preds=model_pred))
 #        print(f'model {i} has accuracy {np.mean(scores)}')
