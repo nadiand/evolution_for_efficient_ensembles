@@ -67,26 +67,22 @@ class Evaluator:
                 output = models[0](images)
 
             pred = torch.argmax(torch.Tensor(output), axis=1)
-#            print('pred', pred)
-#            print(lbl)
             scores.append(self.score_fn(target=lbl, preds=pred))
 
         score = np.mean(scores) - penalty
         return score
 
-def initialize_population(population_size, N_models, history):
+def initialize_population(population_size, N_models):
     population = []
     index = 0
     while len(population) < population_size:
         sequence = np.random.randint(0, high=2, size=N_models)
-        if not np.all(sequence==history, axis=2).any():
-            history[0, index] = sequence
-            population.append(Candidate(sequence))
-            index += 1
-    return population, history
+        population.append(Candidate(sequence))
+        index += 1
+    return population
 
 
-def reproduce(population, history, g, population_size, N_models):
+def reproduce(population, g, population_size, N_models):
     new_population = []
     index = 0
     while index < population_size:
@@ -105,24 +101,30 @@ def reproduce(population, history, g, population_size, N_models):
 
         child2 = (child2 + np.random.binomial(size=N_models, n=1, p= 0.1))%2
 
-        if not (np.all(child1==history, axis=2).any()):
-            history[g, index] = child1
+        if np.any(child1):
             new_population.append(Candidate(child1))
             index += 1
 
         if index < population_size:
-            if not (np.all(child2==history, axis=2).any()):
-                history[g, index] = child2
+            if np.any(child2):
                 new_population.append(Candidate(child2))
                 index += 1
-    return new_population, history
+    return new_population
 
 
-def evaluate_population(population, problem):
+def evaluate_population(population, problem, history):
     for candidate in population:
-        fitness = problem(candidate())
-        candidate.set_fitness(fitness)
-    return population
+        bitstring_list = candidate.bitstring.tolist()
+        if bitstring_list in history[0]:
+            ind = history[0].index(bitstring_list)
+            fitness = history[1][ind]
+            candidate.set_fitness(fitness)
+        else:
+            fitness = problem(candidate())
+            candidate.set_fitness(fitness)
+            history[0].append(bitstring_list)
+            history[1].append(fitness)
+    return population, history
 
 def select_with_elitism(parents, offspring, population_size):
     parents.sort(key=lambda x: x.fitness)
@@ -145,7 +147,7 @@ def select(parents, offspring, population_size):
 def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
         use_both_lighting=False, use_pseudo_label=False, augment_mask=True):
 
-    penalty = 0.01
+    penalty = 0 #0.01
     evaluator = Evaluator(scoring_fn, penalty, use_pseudo_label)
     problem = SimpleProblem(model_lib, evaluator, pipeline, augment_mask, use_both_lighting)
 
@@ -155,17 +157,17 @@ def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
 
     np.random.seed(seed=seed+2)
 
-    history = np.zeros((n_gen+1, population_size, N_models))
-    population, history = initialize_population(population_size, N_models, history)
-    population = evaluate_population(population, problem)
+    history = [[[0 for _ in range(N_models)]],[0.]]
+    population = initialize_population(population_size, N_models)
+    population, history = evaluate_population(population, problem, history)
     print("Init pop:")
     for p in population:
         print(p.bitstring, p.fitness)
     time_per_epoch = 0
     for g in range(n_gen):
         start_epoch = time.time()
-        offspring, history = reproduce(population, history, g+1, population_size, N_models)
-        offspring = evaluate_population(offspring, problem)
+        offspring = reproduce(population, g+1, population_size, N_models)
+        offspring, history = evaluate_population(offspring, problem, history)
         best_candidate, population = select_with_elitism(population, offspring, population_size)
         end_epoch = time.time()
         time_per_epoch += (end_epoch - start_epoch)
