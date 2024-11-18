@@ -10,6 +10,7 @@ from cifar10_models.resnet import resnet18, resnet34
 from cifar10_models.googlenet import googlenet
 from cifar10_models.mobilenetv2 import mobilenet_v2
 from torchmetrics import Accuracy
+from torch.nn import CrossEntropyLoss as CEL
 
 
 # Candidate class that contains the parameters and order
@@ -42,7 +43,7 @@ class SimpleProblem:
                 ensemble.append(self.model_lib[i])
         norm_weights = [float(w)/sum(voting_weights) for w in voting_weights]
         score = self.evaluator.run(ensemble, norm_weights, eval_type)
-        return -score
+        return score
 
 class Evaluator:
     def __init__(
@@ -73,12 +74,9 @@ class Evaluator:
             else:
                 output = models[0](images)
 
-            pred = torch.argmax(torch.Tensor(output), axis=1)
-#            print('pred', pred)
-#            print(lbl)
-            scores.append(self.score_fn(target=lbl, preds=pred))
+            scores.append(self.score_fn(torch.Tensor(output), torch.Tensor(lbl)))
 
-        score = np.mean(scores) - penalty
+        score = np.mean(scores) + penalty
         return score
 
 def initialize_population(population_size, N_models, threshold, history):
@@ -168,14 +166,14 @@ def select(parents, offspring, population_size):
 def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
         use_both_lighting=False, use_pseudo_label=False, augment_mask=True):
 
-    penalty = 0 #0.01
+    penalty = 0.01
     evaluator = Evaluator(scoring_fn, penalty, use_pseudo_label)
     problem = SimpleProblem(model_lib, evaluator, pipeline, augment_mask, use_both_lighting)
 
-    n_gen = 20
-    population_size = 20
+    n_gen = 2
+    population_size = 6
     N_models = len(model_lib)
-    threshold = 0 #0.1
+    threshold = 0.1
 
     np.random.seed(seed=seed+2)
 
@@ -250,23 +248,26 @@ def load_models():
     classifiers.append(mobilenet_v2_model)
 
     # Evaluating the individual models to have a baseline of performance
-#    accuracy = Accuracy(task='multiclass', num_classes=10)
-#    val_dataset, test_dataset = CIFAR10Data().test_dataloader()
-#    for i, c in enumerate(classifiers):
-#        scores = []
-#        for images, lbl in test_dataset:
-#            model_pred = c(images)
-#            scores.append(accuracy(target=lbl, preds=model_pred))
-#        print(f'model {i} has accuracy {np.mean(scores)}')
+    accuracy = Accuracy(task='multiclass', num_classes=10)
+    loss_fn = CEL()
+    val_dataset, test_dataset = CIFAR10Data().test_dataloader()
+    for i, c in enumerate(classifiers):
+        scores = []
+        for images, lbl in val_dataset:
+            model_pred = c(images)
+            loss = loss_fn(model_pred, lbl).detach().numpy()
+            scores.append(loss)
+        print(f'model {i} has loss {np.mean(scores)}')
 
-
-    # Results:
-    # model 0 has accuracy 0.9406049847602844
-    # model 1 has accuracy 0.940504789352417
-    # model 2 has accuracy 0.9306890964508057
-    # model 3 has accuracy 0.9333934187889099
-    # model 4 has accuracy 0.9284855723381042
-    # model 5 has accuracy 0.9391025900840759
+    scores = []
+    for images, lbl in test_dataset:
+        all_outputs = []
+        for i, m in enumerate(classifiers):
+            model_pred = m(images).detach().numpy()
+            all_outputs.append(model_pred)
+        output = np.mean(all_outputs, axis=0)
+        scores.append(loss_fn(torch.Tensor(output), torch.Tensor(lbl)))
+    print(f'baseline ensemble loss is {np.mean(scores)}')
 
     print('models loaded')
 
@@ -275,6 +276,6 @@ def load_models():
 
 if __name__ == "__main__":
 
-    best_voting_weights = select_ensemble(model_lib=load_models(), scoring_fn=Accuracy(task='multiclass', num_classes=10), seed=0, pipeline = None,
+    best_voting_weights = select_ensemble(model_lib=load_models(), scoring_fn=CEL(), seed=0, pipeline = None,
         use_both_lighting=False, use_pseudo_label=False, augment_mask=True)
     print(best_voting_weights)
