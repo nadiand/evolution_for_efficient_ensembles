@@ -108,8 +108,11 @@ def mutate(ensemble, mutation_type, threshold):
 def reproduce(population, history, g, population_size, N_models, threshold):
     new_population = []
     index = 0
+    fitnesses = np.array([-p.fitness for p in population])
+    prob = fitnesses / np.sum(fitnesses)
+
     while index < population_size:
-        parents = np.random.choice(population, size=2, replace=False)
+        parents = np.random.choice(population, p=prob, size=2, replace=False)
         cX_point = np.random.randint(1, N_models-1)
 
         child1 = np.zeros(N_models, dtype=float)
@@ -166,12 +169,12 @@ def select(parents, offspring, population_size):
 def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
         use_both_lighting=False, use_pseudo_label=False, augment_mask=True):
 
-    penalty = 0.01
+    penalty = 0.05
     evaluator = Evaluator(scoring_fn, penalty, use_pseudo_label)
     problem = SimpleProblem(model_lib, evaluator, pipeline, augment_mask, use_both_lighting)
 
-    n_gen = 2
-    population_size = 6
+    n_gen = 20
+    population_size = 50
     N_models = len(model_lib)
     threshold = 0.1
 
