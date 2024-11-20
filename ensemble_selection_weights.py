@@ -5,10 +5,11 @@ import numpy as np
 import time
 
 from data import CIFAR10Data
-from cifar10_models.densenet import densenet121, densenet169
+from cifar10_models.densenet import densenet121, densenet169, densenet161
 from cifar10_models.resnet import resnet18, resnet34
 from cifar10_models.googlenet import googlenet
 from cifar10_models.mobilenetv2 import mobilenet_v2
+from cifar10_models.vgg import vgg11_bn, vgg13_bn, vgg16_bn
 from torchmetrics import Accuracy
 from torch.nn import CrossEntropyLoss as CEL
 
@@ -119,14 +120,14 @@ def reproduce(population, history, g, population_size, N_models, threshold):
         child1[:cX_point] = parents[0].voting_weights[:cX_point]
         child1[cX_point:] = parents[1].voting_weights[cX_point:]
 
-        if np.random.uniform() < 0.1:
+        if np.random.uniform() < 0.75:
             child1 = mutate(child1, "all", threshold)
 
         child2 = np.zeros(N_models, dtype=float)
         child2[:cX_point] = parents[1].voting_weights[:cX_point]
         child2[cX_point:] = parents[0].voting_weights[cX_point:]
 
-        if np.random.uniform() < 0.1:
+        if np.random.uniform() < 0.75:
             child2 = mutate(child2, "all", threshold)
 
         if not (np.all(child1==history, axis=2).any()):
@@ -203,10 +204,29 @@ def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
 
     best_candidate = evaluate_population([best_candidate], problem, 'test')[0]
     fitness_no_penalty = best_candidate.fitness - penalty*np.count_nonzero(best_candidate.voting_weights)
+    print(f"Best fitness on testset without penalty: {fitness_no_penalty}")
+
+    ensemble = []
+    for i, n in enumerate(best_candidate.voting_weights):
+        if n:
+            ensemble.append(problem.model_lib[i])
+
+    scores = []
+    accuracy = Accuracy(task='multiclass', num_classes=10)
+    for images, lbl in evaluator.testset:
+        all_outputs = []
+        for i, m in enumerate(ensemble):
+            model_pred = m(images).detach().numpy()
+            model_weights = np.empty_like(model_pred)
+            model_weights.fill(best_candidate.voting_weights[i])
+            all_outputs.append(model_pred * model_weights)
+        output = sum(all_outputs)
+        scores.append(accuracy(target=torch.Tensor(lbl), preds=torch.Tensor(output)))
+    score = np.mean(scores)
+    print(f"Best accuracy on testset without penalty: {score}")
 
     print(f"Total time it took to do {n_gen} epochs: {time_per_epoch}")
     print(f"Time it took to do one epoch: {time_per_epoch/n_gen}")
-    print(f"Best fitness without penalty: {fitness_no_penalty}")
 
     return best_candidate.voting_weights
 
@@ -250,19 +270,47 @@ def load_models():
     mobilenet_v2_model.eval()
     classifiers.append(mobilenet_v2_model)
 
+    densenet_model3 = densenet161()
+    state_dict = os.path.join("cifar10_models", "state_dicts", "densenet161" + ".pt")
+    densenet_model3.load_state_dict(torch.load(state_dict))
+    densenet_model3.eval()
+    classifiers.append(densenet_model3)
+
+    vgg_model = vgg11_bn()
+    state_dict = os.path.join("cifar10_models", "state_dicts", "vgg11_bn" + ".pt")
+    vgg_model.load_state_dict(torch.load(state_dict))
+    vgg_model.eval()
+    classifiers.append(vgg_model)
+
+    vgg_model2 = vgg13_bn()
+    state_dict = os.path.join("cifar10_models", "state_dicts", "vgg13_bn" + ".pt")
+    vgg_model2.load_state_dict(torch.load(state_dict))
+    vgg_model2.eval()
+    classifiers.append(vgg_model2)
+
+    vgg_model3 = vgg16_bn()
+    state_dict = os.path.join("cifar10_models", "state_dicts", "vgg16_bn" + ".pt")
+    vgg_model3.load_state_dict(torch.load(state_dict))
+    vgg_model3.eval()
+    classifiers.append(vgg_model3)
+
+    print('models loaded')
+    return classifiers
+
     # Evaluating the individual models to have a baseline of performance
     accuracy = Accuracy(task='multiclass', num_classes=10)
     loss_fn = CEL()
     val_dataset, test_dataset = CIFAR10Data().test_dataloader()
     for i, c in enumerate(classifiers):
         scores = []
-        for images, lbl in val_dataset:
+        for images, lbl in test_dataset:
             model_pred = c(images)
             loss = loss_fn(model_pred, lbl).detach().numpy()
             scores.append(loss)
         print(f'model {i} has loss {np.mean(scores)}')
 
     scores = []
+    accuracies = []
     for images, lbl in test_dataset:
         all_outputs = []
         for i, m in enumerate(classifiers):
@@ -270,9 +318,8 @@ def load_models():
             all_outputs.append(model_pred)
         output = np.mean(all_outputs, axis=0)
         scores.append(loss_fn(torch.Tensor(output), torch.Tensor(lbl)))
-    print(f'baseline ensemble loss is {np.mean(scores)}')
-
-    print('models loaded')
+        accuracies.append(accuracy(target=torch.Tensor(lbl), preds=torch.Tensor(output)))
+    print(f'baseline ensemble loss is {np.mean(scores)}, and accuracy is {np.mean(accuracies)}')
 
     return classifiers
 
