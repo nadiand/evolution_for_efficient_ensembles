@@ -92,10 +92,11 @@ def initialize_population(population_size, N_models, threshold, history):
             index += 1
     return population, history
 
-def mutate(ensemble, mutation_type, threshold):
+def mutate(ensemble, mutation_type, threshold, generation):
     N_models = len(ensemble)
     if mutation_type == "all":
-        factor = np.random.uniform(-0.2, 0.2, size=N_models)
+        sigma = 0.2 #- generation*0.01
+        factor = np.random.uniform(-sigma, sigma, size=N_models)
         ensemble += factor
         ensemble = [w if w>threshold else 0 for w in ensemble]
     elif mutation_type == "one":
@@ -104,6 +105,29 @@ def mutate(ensemble, mutation_type, threshold):
         ensemble[modified_model] = new_weight if new_weight > threshold else 0
 
     return ensemble
+
+def reproduce_uniform(population, history, g, population_size, N_models, threshold):
+    new_population = []
+    index = 0
+    fitnesses = np.array([-p.fitness for p in population])
+    prob = fitnesses / np.sum(fitnesses)
+
+    while index < population_size:
+        parents = np.random.choice(population, p=prob, size=2, replace=False)
+        genes_parent1 = np.random.uniform(0.0, 1.0, size=N_models) > 0.5
+        child = []
+        for i, gene in enumerate(genes_parent1):
+            child.append(parents[0].voting_weights[i] if gene else parents[1].voting_weights[i])
+
+        if np.random.uniform() < 0.25:
+            child = mutate(child, "all", threshold, g-1)
+
+        if not (np.all(child==history, axis=2).any()):
+            history[g, index] = child
+            new_population.append(Candidate(child))
+            index += 1
+
+    return new_population, history
 
 
 def reproduce(population, history, g, population_size, N_models, threshold):
@@ -120,15 +144,15 @@ def reproduce(population, history, g, population_size, N_models, threshold):
         child1[:cX_point] = parents[0].voting_weights[:cX_point]
         child1[cX_point:] = parents[1].voting_weights[cX_point:]
 
-        if np.random.uniform() < 0.75:
-            child1 = mutate(child1, "all", threshold)
+        if True: #np.random.uniform() < 0.75:
+            child1 = mutate(child1, "all", threshold, g-1)
 
         child2 = np.zeros(N_models, dtype=float)
         child2[:cX_point] = parents[1].voting_weights[:cX_point]
         child2[cX_point:] = parents[0].voting_weights[cX_point:]
 
-        if np.random.uniform() < 0.75:
-            child2 = mutate(child2, "all", threshold)
+        if True: #np.random.uniform() < 0.75:
+            child2 = mutate(child2, "all", threshold, g-1)
 
         if not (np.all(child1==history, axis=2).any()):
             history[g, index] = child1
@@ -190,7 +214,7 @@ def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
     time_per_epoch = 0
     for g in range(n_gen):
         start_epoch = time.time()
-        offspring, history = reproduce(population, history, g+1, population_size, N_models, threshold)
+        offspring, history = reproduce_uniform(population, history, g+1, population_size, N_models, threshold)
         offspring = evaluate_population(offspring, problem, 'validation')
         best_candidate, population = select_with_elitism(population, offspring, population_size)
         end_epoch = time.time()
