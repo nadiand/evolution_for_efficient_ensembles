@@ -3,6 +3,8 @@ import os
 import torch
 import numpy as np
 import time
+import matplotlib.pyplot as plt
+from sklearn.manifold import TSNE
 
 from data import CIFAR10Data
 from cifar10_models.densenet import densenet121, densenet169, densenet161
@@ -137,21 +139,32 @@ def reproduce(population, history, g, population_size, N_models, threshold):
     prob = fitnesses / np.sum(fitnesses)
 
     while index < population_size:
+        # Just picking two random models using distribution
         parents = np.random.choice(population, p=prob, size=2, replace=False)
+
+        # Doing tournament selection
+#        tournament_pool1 = np.random.choice(population, size=3, replace=False)
+#        tournament_pool2 = np.random.choice(population, size=3, replace=False)
+#        fitnesses1 = np.array([p.fitness for p in tournament_pool1])
+#        fitnesses2 = np.array([p.fitness for p in tournament_pool2])
+#        winner1 = tournament_pool1[np.argmax(fitnesses1)]
+#        winner2 = tournament_pool2[np.argmax(fitnesses2)]
+#        parents = [winner1, winner2]
+
         cX_point = np.random.randint(1, N_models-1)
 
         child1 = np.zeros(N_models, dtype=float)
         child1[:cX_point] = parents[0].voting_weights[:cX_point]
         child1[cX_point:] = parents[1].voting_weights[cX_point:]
 
-        if True: #np.random.uniform() < 0.75:
+        if np.random.uniform() < 0.25:
             child1 = mutate(child1, "all", threshold, g-1)
 
         child2 = np.zeros(N_models, dtype=float)
         child2[:cX_point] = parents[1].voting_weights[:cX_point]
         child2[cX_point:] = parents[0].voting_weights[cX_point:]
 
-        if True: #np.random.uniform() < 0.75:
+        if np.random.uniform() < 0.25:
             child2 = mutate(child2, "all", threshold, g-1)
 
         if not (np.all(child1==history, axis=2).any()):
@@ -214,7 +227,7 @@ def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
     time_per_epoch = 0
     for g in range(n_gen):
         start_epoch = time.time()
-        offspring, history = reproduce_uniform(population, history, g+1, population_size, N_models, threshold)
+        offspring, history = reproduce(population, history, g+1, population_size, N_models, threshold)
         offspring = evaluate_population(offspring, problem, 'validation')
         best_candidate, population = select_with_elitism(population, offspring, population_size)
         end_epoch = time.time()
@@ -325,13 +338,26 @@ def load_models():
     accuracy = Accuracy(task='multiclass', num_classes=10)
     loss_fn = CEL()
     val_dataset, test_dataset = CIFAR10Data().test_dataloader()
+    preds = []
     for i, c in enumerate(classifiers):
-        scores = []
+        scores, accs = [], []
+        c_preds = []
         for images, lbl in test_dataset:
             model_pred = c(images)
             loss = loss_fn(model_pred, lbl).detach().numpy()
             scores.append(loss)
-        print(f'model {i} has loss {np.mean(scores)}')
+#            output = np.mean(, axis=0)
+            accs.append(accuracy(target=torch.Tensor(lbl), preds=torch.Tensor(model_pred)))
+            c_preds.append(model_pred.detach().numpy())
+        c_preds_arr = np.array(c_preds)
+        preds.append(c_preds_arr.flatten())
+        print(f'model {i} has loss {np.mean(scores)}, and accuracy {np.mean(accs)}')
+
+#    print(preds)
+#    X_embedded = TSNE(n_components=2, learning_rate='auto', init='random', perplexity=6).fit_transform(np.array(preds))
+#    fig, ax = plt.subplots(1,1)
+#    plt.scatter(X_embedded[:,0], X_embedded[:,1], cmap=plt.cm.rainbow)
+#    plt.savefig('test_tsne.png')
 
     scores = []
     accuracies = []
