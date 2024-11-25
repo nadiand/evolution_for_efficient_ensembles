@@ -109,7 +109,7 @@ def mutate(ensemble, mutation_type, threshold, generation):
 def reproduce_uniform(population, history, g, population_size, N_models, threshold):
     new_population = []
     index = 0
-    fitnesses = np.array([-p.fitness for p in population])
+    fitnesses = np.array([p.fitness for p in population])
     prob = fitnesses / np.sum(fitnesses)
 
     while index < population_size:
@@ -133,7 +133,7 @@ def reproduce_uniform(population, history, g, population_size, N_models, thresho
 def reproduce(population, history, g, population_size, N_models, threshold):
     new_population = []
     index = 0
-    fitnesses = np.array([-p.fitness for p in population])
+    fitnesses = np.array([p.fitness for p in population])
     prob = fitnesses / np.sum(fitnesses)
 
     while index < population_size:
