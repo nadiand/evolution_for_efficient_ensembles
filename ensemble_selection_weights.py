@@ -18,9 +18,10 @@ from torch.nn import CrossEntropyLoss as CEL
 
 # Candidate class that contains the parameters and order
 class Candidate:
-    def __init__(self, voting_weights):
+    def __init__(self, voting_weights, generation):
         self.voting_weights = voting_weights
         self.fitness = None
+        self.generation = generation
 
     # Evaluates the candidates parameters in the given order
     def __call__(self):
@@ -82,7 +83,7 @@ class Evaluator:
         score = np.mean(scores) + penalty
         return score
 
-def initialize_population(population_size, N_models, threshold, history):
+def initialize_population(population_size, N_models, threshold, history, g):
     population = []
     index = 0
     while len(population) < population_size:
@@ -90,7 +91,7 @@ def initialize_population(population_size, N_models, threshold, history):
         sequence = [s if s>threshold else 0 for s in sequence]
         if not np.all(sequence==history, axis=2).any():
             history[0, index] = sequence
-            population.append(Candidate(sequence))
+            population.append(Candidate(sequence, g))
             index += 1
     return population, history
 
@@ -126,7 +127,7 @@ def reproduce_uniform(population, history, g, population_size, N_models, thresho
 
         if not (np.all(child==history, axis=2).any()):
             history[g, index] = child
-            new_population.append(Candidate(child))
+            new_population.append(Candidate(child, g))
             index += 1
 
     return new_population, history
@@ -169,13 +170,13 @@ def reproduce(population, history, g, population_size, N_models, threshold):
 
         if not (np.all(child1==history, axis=2).any()):
             history[g, index] = child1
-            new_population.append(Candidate(child1))
+            new_population.append(Candidate(child1, g))
             index += 1
 
         if index < population_size:
             if not (np.all(child2==history, axis=2).any()):
                 history[g, index] = child2
-                new_population.append(Candidate(child2))
+                new_population.append(Candidate(child2, g))
                 index += 1
     return new_population, history
 
@@ -219,7 +220,7 @@ def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
     np.random.seed(seed=seed+2)
 
     history = np.zeros((n_gen+1, population_size, N_models))
-    population, history = initialize_population(population_size, N_models, threshold, history)
+    population, history = initialize_population(population_size, N_models, threshold, history, 0)
     population = evaluate_population(population, problem, 'validation')
     print("Init pop:")
     for p in population:
