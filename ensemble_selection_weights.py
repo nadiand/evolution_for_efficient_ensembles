@@ -147,8 +147,8 @@ def reproduce(population, history, g, population_size, N_models, threshold):
 #        tournament_pool2 = np.random.choice(population, size=3, replace=False)
 #        fitnesses1 = np.array([p.fitness for p in tournament_pool1])
 #        fitnesses2 = np.array([p.fitness for p in tournament_pool2])
-#        winner1 = tournament_pool1[np.argmax(fitnesses1)]
-#        winner2 = tournament_pool2[np.argmax(fitnesses2)]
+#        winner1 = tournament_pool1[np.argmin(fitnesses1)]
+#        winner2 = tournament_pool2[np.argmin(fitnesses2)]
 #        parents = [winner1, winner2]
 
         cX_point = np.random.randint(1, N_models-1)
