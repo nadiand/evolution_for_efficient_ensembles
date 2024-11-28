@@ -4,14 +4,9 @@ import torch
 import numpy as np
 import time
 import matplotlib.pyplot as plt
-from sklearn.manifold import TSNE
 
+from models import load_cifar10_models, load_cifar100_models
 from data import CIFARData
-from cifar10_models.densenet import densenet121, densenet169, densenet161
-from cifar10_models.resnet import resnet18, resnet34
-from cifar10_models.googlenet import googlenet
-from cifar10_models.mobilenetv2 import mobilenet_v2
-from cifar10_models.vgg import vgg11_bn, vgg13_bn, vgg16_bn
 from torchmetrics import Accuracy
 from torch.nn import CrossEntropyLoss as CEL
 
@@ -151,8 +146,10 @@ def reproduce(population, history, g, population_size, N_models, threshold):
 #        tournament_pool2 = np.random.choice(population, size=int(population_size*0.1), replace=False)
 #        fitnesses1 = np.array([p.fitness for p in tournament_pool1])
 #        fitnesses2 = np.array([p.fitness for p in tournament_pool2])
+#        ages2 = np.array([p.generation for p in tournament_pool2])
+#        print(fitnesses1, ages2)
 #        winner1 = tournament_pool1[np.argmin(fitnesses1)]
-#        winner2 = tournament_pool2[np.argmin(fitnesses2)]
+#        winner2 = tournament_pool2[np.argmin(ages2)]
 #        parents = [winner1, winner2]
 
         cX_point = np.random.randint(1, N_models-1)
@@ -227,7 +224,7 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
     population = evaluate_population(population, problem, 'validation')
     print("Init pop:")
     for p in population:
-        print(p.voting_weights, p.fitness)
+        print(p.voting_weights, p.fitness, p.generation)
     time_per_epoch = 0
     for g in range(n_gen):
         start_epoch = time.time()
@@ -238,7 +235,8 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
         time_per_epoch += (end_epoch - start_epoch)
         print("Current population:")
         for p in population:
-            print(p.voting_weights, p.fitness)
+            print(p.generation)
+#            print(p.voting_weights, p.fitness, p.generation)
         # logging.info(f"Generation: {g+1}, best fitness: {best_candidate.fitness}, ensemble: {best_candidate.voting_weights}")
         print((f"Generation: {g+1}, best fitness: {best_candidate.fitness}, ensemble: {best_candidate.voting_weights}, gen found: {best_candidate.generation}"))
         print("-"*80)
@@ -273,76 +271,19 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
     return best_candidate.voting_weights
 
 
-def load_models(nr_classes):
-    classifiers = []
+def load_models(nr_classes, evaluate=False):
+    if nr_classes == 100:
+        classifiers = load_cifar100_models()
+    elif nr_classes == 10:
+        classifiers = load_cifar10_models()
 
-    densenet_model = densenet121()
-    state_dict = os.path.join("cifar10_models", "state_dicts", "densenet121" + ".pt")
-    densenet_model.load_state_dict(torch.load(state_dict))
-    densenet_model.eval()
-    classifiers.append(densenet_model)
-
-    densenet_model2 = densenet169()
-    state_dict = os.path.join("cifar10_models", "state_dicts", "densenet169" + ".pt")
-    densenet_model2.load_state_dict(torch.load(state_dict))
-    densenet_model2.eval()
-    classifiers.append(densenet_model2)
-
-    resnet_model = resnet18()
-    state_dict = os.path.join("cifar10_models", "state_dicts", "resnet18" + ".pt")
-    resnet_model.load_state_dict(torch.load(state_dict))
-    resnet_model.eval()
-    classifiers.append(resnet_model)
-
-    resnet_model2 = resnet34()
-    state_dict = os.path.join("cifar10_models", "state_dicts", "resnet34" + ".pt")
-    resnet_model2.load_state_dict(torch.load(state_dict))
-    resnet_model2.eval()
-    classifiers.append(resnet_model2)
-
-    googlenet_model = googlenet()
-    state_dict = os.path.join("cifar10_models", "state_dicts", "googlenet" + ".pt")
-    googlenet_model.load_state_dict(torch.load(state_dict))
-    googlenet_model.eval()
-    classifiers.append(googlenet_model)
-
-    mobilenet_v2_model = mobilenet_v2()
-    state_dict = os.path.join("cifar10_models", "state_dicts", "mobilenet_v2" + ".pt")
-    mobilenet_v2_model.load_state_dict(torch.load(state_dict))
-    mobilenet_v2_model.eval()
-    classifiers.append(mobilenet_v2_model)
-
-    densenet_model3 = densenet161()
-    state_dict = os.path.join("cifar10_models", "state_dicts", "densenet161" + ".pt")
-    densenet_model3.load_state_dict(torch.load(state_dict))
-    densenet_model3.eval()
-    classifiers.append(densenet_model3)
-
-    vgg_model = vgg11_bn()
-    state_dict = os.path.join("cifar10_models", "state_dicts", "vgg11_bn" + ".pt")
-    vgg_model.load_state_dict(torch.load(state_dict))
-    vgg_model.eval()
-    classifiers.append(vgg_model)
-
-    vgg_model2 = vgg13_bn()
-    state_dict = os.path.join("cifar10_models", "state_dicts", "vgg13_bn" + ".pt")
-    vgg_model2.load_state_dict(torch.load(state_dict))
-    vgg_model2.eval()
-    classifiers.append(vgg_model2)
-
-    vgg_model3 = vgg16_bn()
-    state_dict = os.path.join("cifar10_models", "state_dicts", "vgg16_bn" + ".pt")
-    vgg_model3.load_state_dict(torch.load(state_dict))
-    vgg_model3.eval()
-    classifiers.append(vgg_model3)
-
-    print('models loaded')
-    return classifiers
+    if not evaluate:
+        return classifiers
 
     # Evaluating the individual models to have a baseline of performance
     accuracy = Accuracy(task='multiclass', num_classes=nr_classes)
     loss_fn = CEL()
-    val_dataset, test_dataset = CIFARData().test_dataloader()
+    val_dataset, test_dataset = CIFARData(nr_classes).test_dataloader()
     preds = []
     for i, c in enumerate(classifiers):
         scores, accs = [], []
@@ -351,8 +292,8 @@ def load_models(nr_classes):
             model_pred = c(images)
             loss = loss_fn(model_pred, lbl).detach().numpy()
             scores.append(loss)
-#            output = np.mean(, axis=0)
-            accs.append(accuracy(target=torch.Tensor(lbl), preds=torch.Tensor(model_pred)))
+            output = np.argmax(model_pred.detach().numpy(), axis=1)
+            accs.append(accuracy(target=torch.Tensor(lbl), preds=torch.Tensor(output)))
             c_preds.append(model_pred.detach().numpy())
         c_preds_arr = np.array(c_preds)
         preds.append(c_preds_arr.flatten())
@@ -380,7 +321,7 @@ def load_models(nr_classes):
 
 
 if __name__ == "__main__":
-    nr_classes = 10
+    nr_classes = 100
 
     best_voting_weights = select_ensemble(model_lib=load_models(nr_classes), nr_classes=nr_classes, scoring_fn=CEL(), seed=0, pipeline = None,
         use_both_lighting=False, use_pseudo_label=False, augment_mask=True)
