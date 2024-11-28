@@ -11,16 +11,17 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Subset
 from torchvision import transforms as T
 from torchvision.transforms import v2
-from torchvision.datasets import CIFAR10
+from torchvision.datasets import CIFAR10, CIFAR100
 from tqdm import tqdm
 
 
-class CIFAR10Data(pl.LightningDataModule):
-    def __init__(self):
+class CIFARData(pl.LightningDataModule):
+    def __init__(self, nr_classes):
         super().__init__()
 #        self.hparams = args
         self.mean = (0.4914, 0.4822, 0.4465)
         self.std = (0.2471, 0.2435, 0.2616)
+        self.nr_classes = nr_classes
 
     def download_weights():
         url = (
@@ -77,21 +78,31 @@ class CIFAR10Data(pl.LightningDataModule):
         np.random.seed(12345)
         transform = T.Compose(
             [
-                v2.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 2)),
+                # v2.ColorJitter(brightness=(0.1,2)),
+                # v2.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 1.5)),
                 T.ToTensor(),
                 T.Normalize(self.mean, self.std),
             ]
         )
-        dataset = CIFAR10(root="/home/nadia_dobreva/PyTorch_CIFAR10/data/cifar10/", train=False, transform=transform, download=True)
-        subset_size = 20
+        
+        if self.nr_classes == 10:
+            dataset = CIFAR10(root="/home/nadia_dobreva/PyTorch_CIFAR10/data/cifar10/", train=False, transform=transform, download=True)
+        elif self.nr_classes == 100:
+            dataset = CIFAR100(root="/home/nadia_dobreva/PyTorch_CIFAR10/data/cifar100/", train=False, transform=transform, download=True)
+        else:
+            print("invalid dataset requested")
+            exit(0)
+            
+        subset_size = 50
         rand_start = 7037 #np.random.randint(0,dataset.__len__())
         small_dataset = Subset(dataset, range(rand_start, rand_start + subset_size))
         val_dataloader = DataLoader(
             small_dataset,
-            batch_size=subset_size,
+            batch_size=subset_size-20,
             num_workers=4,
             drop_last=True,
             pin_memory=True,
+            shuffle=True,
         )
 
         rest_of_dataset = Subset(dataset, list(chain(range(0, rand_start), range(rand_start+subset_size+1, len(dataset)))))
