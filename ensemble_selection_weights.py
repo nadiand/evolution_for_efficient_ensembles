@@ -147,8 +147,8 @@ def reproduce(population, history, g, population_size, N_models, threshold):
         parents = np.random.choice(population, p=prob, size=2, replace=False)
 
         # Doing tournament selection
-#        tournament_pool1 = np.random.choice(population, size=3, replace=False)
-#        tournament_pool2 = np.random.choice(population, size=3, replace=False)
+#        tournament_pool1 = np.random.choice(population, size=int(population_size*0.1), replace=False)
+#        tournament_pool2 = np.random.choice(population, size=int(population_size*0.1), replace=False)
 #        fitnesses1 = np.array([p.fitness for p in tournament_pool1])
 #        fitnesses2 = np.array([p.fitness for p in tournament_pool2])
 #        winner1 = tournament_pool1[np.argmin(fitnesses1)]
@@ -240,7 +240,7 @@ def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
         for p in population:
             print(p.voting_weights, p.fitness)
         # logging.info(f"Generation: {g+1}, best fitness: {best_candidate.fitness}, ensemble: {best_candidate.voting_weights}")
-        print((f"Generation: {g+1}, best fitness: {best_candidate.fitness}, ensemble: {best_candidate.voting_weights}"))
+        print((f"Generation: {g+1}, best fitness: {best_candidate.fitness}, ensemble: {best_candidate.voting_weights}, gen found: {best_candidate.generation}"))
         print("-"*80)
 
     best_candidate = evaluate_population([best_candidate], problem, 'test')[0]
