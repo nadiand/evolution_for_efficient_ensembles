@@ -251,12 +251,13 @@ def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
 
     scores = []
     accuracy = Accuracy(task='multiclass', num_classes=10)
+    norm_weights = [float(w)/sum(best_candidate.voting_weights) for w in best_candidate.voting_weights]
     for images, lbl in evaluator.testset:
         all_outputs = []
         for i, m in enumerate(ensemble):
             model_pred = m(images).detach().numpy()
             model_weights = np.empty_like(model_pred)
-            model_weights.fill(best_candidate.voting_weights[i])
+            model_weights.fill(norm_weights[i])
             all_outputs.append(model_pred * model_weights)
         output = sum(all_outputs)
         scores.append(accuracy(target=torch.Tensor(lbl), preds=torch.Tensor(output)))
