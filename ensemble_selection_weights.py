@@ -294,7 +294,7 @@ def load_models(nr_classes, evaluate=False):
             scores.append(loss)
             output = np.argmax(model_pred.detach().numpy(), axis=1)
             accs.append(accuracy(target=torch.Tensor(lbl), preds=torch.Tensor(output)))
-            c_preds.append(model_pred.detach().numpy())
+            c_preds.append(output)
         c_preds_arr = np.array(c_preds)
         preds.append(c_preds_arr.flatten())
         print(f'model {i} has loss {np.mean(scores)}, and accuracy {np.mean(accs)}')
