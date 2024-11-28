@@ -87,7 +87,10 @@ def initialize_population(population_size, N_models, threshold, history, g):
     population = []
     index = 0
     while len(population) < population_size:
+        # Completely random weights in initial pop
         sequence = np.random.uniform(0.0, high=1.0, size=N_models)
+        # Weights close to 1, i.e. all models get almost equal voting power
+        # sequence = np.random.normal(loc=1.0, scale=0.2, size=N_models)
         sequence = [s if s>threshold else 0 for s in sequence]
         if not np.all(sequence==history, axis=2).any():
             history[0, index] = sequence
