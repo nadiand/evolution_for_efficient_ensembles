@@ -6,7 +6,7 @@ import time
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 
-from data import CIFAR10Data
+from data import CIFARData
 from cifar10_models.densenet import densenet121, densenet169, densenet161
 from cifar10_models.resnet import resnet18, resnet34
 from cifar10_models.googlenet import googlenet
@@ -51,9 +51,9 @@ class SimpleProblem:
 
 class Evaluator:
     def __init__(
-        self, scoring_fn, penalty, pseudo_labels=False
+        self, nr_classes, scoring_fn, penalty, pseudo_labels=False
     ):
-        self.dataset, self.testset = CIFAR10Data().test_dataloader()
+        self.dataset, self.testset = CIFARData(nr_classes).test_dataloader()
         self.score_fn = scoring_fn
         self.penalty = penalty
 
@@ -208,11 +208,11 @@ def select(parents, offspring, population_size):
 
     return selection_pool[0], selection_pool[:population_size]
 
-def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
+def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
         use_both_lighting=False, use_pseudo_label=False, augment_mask=True):
 
     penalty = 0.05
-    evaluator = Evaluator(scoring_fn, penalty, use_pseudo_label)
+    evaluator = Evaluator(nr_classes, scoring_fn, penalty, use_pseudo_label)
     problem = SimpleProblem(model_lib, evaluator, pipeline, augment_mask, use_both_lighting)
 
     n_gen = 20
@@ -253,7 +253,7 @@ def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
             ensemble.append(problem.model_lib[i])
 
     scores = []
-    accuracy = Accuracy(task='multiclass', num_classes=10)
+    accuracy = Accuracy(task='multiclass', num_classes=nr_classes)
     norm_weights = [float(w)/sum(best_candidate.voting_weights) for w in best_candidate.voting_weights]
     for images, lbl in evaluator.testset:
         all_outputs = []
@@ -273,7 +273,7 @@ def select_ensemble(model_lib, scoring_fn, seed=0, pipeline = None,
     return best_candidate.voting_weights
 
 
-def load_models():
+def load_models(nr_classes):
     classifiers = []
 
     densenet_model = densenet121()
@@ -340,9 +340,9 @@ def load_models():
     return classifiers
 
     # Evaluating the individual models to have a baseline of performance
-    accuracy = Accuracy(task='multiclass', num_classes=10)
+    accuracy = Accuracy(task='multiclass', num_classes=nr_classes)
     loss_fn = CEL()
-    val_dataset, test_dataset = CIFAR10Data().test_dataloader()
+    val_dataset, test_dataset = CIFARData().test_dataloader()
     preds = []
     for i, c in enumerate(classifiers):
         scores, accs = [], []
@@ -380,7 +380,8 @@ def load_models():
 
 
 if __name__ == "__main__":
+    nr_classes = 10
 
-    best_voting_weights = select_ensemble(model_lib=load_models(), scoring_fn=CEL(), seed=0, pipeline = None,
+    best_voting_weights = select_ensemble(model_lib=load_models(nr_classes), nr_classes=nr_classes, scoring_fn=CEL(), seed=0, pipeline = None,
         use_both_lighting=False, use_pseudo_label=False, augment_mask=True)
     print(best_voting_weights)
