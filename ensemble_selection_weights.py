@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 
 from models import load_cifar10_models, load_cifar100_models, load_pascal_models
 from data import CIFARData, load_PascalVOC
+from conf_mat import ConfusionMatrix
 from torchmetrics import Accuracy
 from torch.nn import CrossEntropyLoss as CEL
 
