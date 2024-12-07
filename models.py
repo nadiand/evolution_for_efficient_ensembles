@@ -143,3 +143,81 @@ def load_cifar100_models():
 
     print('models loaded')
     return classifiers
+
+
+def load_pascal_models():
+    segmentors = []
+
+    model1 = torchvision.models.get_model(
+        "deeplabv3_mobilenet_v3_large",
+        weights=None,
+        weights_backbone="MobileNet_V3_Large_Weights.IMAGENET1K_V1",
+        num_classes=21,
+        aux_loss=True,
+    )
+    state_dict = os.path.join("pascal_models", "state_dicts", "pascalvoc_mobilenetv3_12345.pth")
+    model1.load_state_dict(torch.load(state_dict)['model'])
+    model1.eval()
+    segmentors.append(model1)
+
+    model2 = torchvision.models.get_model(
+        "deeplabv3_mobilenet_v3_large",
+        weights=None,
+        weights_backbone="MobileNet_V3_Large_Weights.IMAGENET1K_V1",
+        num_classes=21,
+        aux_loss=True,
+    )
+    state_dict = os.path.join("pascal_models", "state_dicts", "pascalvoc_mobilenetv3_32823.pth")
+    model2.load_state_dict(torch.load(state_dict)['model'])
+    model2.eval()
+    segmentors.append(model2)
+
+    model3 = torchvision.models.get_model(
+        "deeplabv3_mobilenet_v3_large",
+        weights=None,
+        weights_backbone="MobileNet_V3_Large_Weights.IMAGENET1K_V1",
+        num_classes=21,
+        aux_loss=True,
+    )
+    state_dict = os.path.join("pascal_models", "state_dicts", "pascalvoc_mobilenetv3_57923.pth")
+    model3.load_state_dict(torch.load(state_dict)['model'])
+    model3.eval()
+    segmentors.append(model3)
+
+    model4 = torchvision.models.get_model(
+        "deeplabv3_mobilenet_v3_large",
+        weights=None,
+        weights_backbone="MobileNet_V3_Large_Weights.IMAGENET1K_V1",
+        num_classes=21,
+        aux_loss=True,
+    )
+    state_dict = os.path.join("pascal_models", "state_dicts", "pascalvoc_mobilenetv3_70852.pth")
+    model4.load_state_dict(torch.load(state_dict)['model'])
+    model4.eval()
+    segmentors.append(model4)
+
+    model5 = torchvision.models.get_model(
+        "deeplabv3_mobilenet_v3_large",
+        weights=None,
+        weights_backbone="MobileNet_V3_Large_Weights.IMAGENET1K_V1",
+        num_classes=21,
+        aux_loss=True,
+    )
+    state_dict = os.path.join("pascal_models", "state_dicts", "pascalvoc_mobilenetv3_97245.pth")
+    model5.load_state_dict(torch.load(state_dict)['model'])
+    model5.eval()
+    segmentors.append(model5)
+
+    model6 = torchvision.models.get_model(
+        "deeplabv3_mobilenet_v3_large",
+        weights=None,
+        weights_backbone="MobileNet_V3_Large_Weights.IMAGENET1K_V1",
+        num_classes=21,
+        aux_loss=True,
+    )
+    state_dict = os.path.join("pascal_models", "state_dicts", "pascalvoc_mobilenetv3_126181.pth")
+    model6.load_state_dict(torch.load(state_dict)['model'])
+    model6.eval()
+    segmentors.append(model6)
+
+    return segmentors
