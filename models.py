@@ -9,6 +9,7 @@ from cifar10_models.mobilenetv2 import mobilenet_v2
 from cifar10_models.vgg import vgg11_bn, vgg13_bn, vgg16_bn
 import os
 import torch
+import torchvision
 
 
 def load_cifar10_models():
