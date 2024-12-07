@@ -5,8 +5,8 @@ import numpy as np
 import time
 import matplotlib.pyplot as plt
 
-from models import load_cifar10_models, load_cifar100_models
-from data import CIFARData
+from models import load_cifar10_models, load_cifar100_models, load_pascal_models
+from data import CIFARData, load_PascalVOC
 from torchmetrics import Accuracy
 from torch.nn import CrossEntropyLoss as CEL
 
@@ -273,13 +273,36 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
 
 def load_models(nr_classes, evaluate=False):
     if nr_classes == 100:
-        classifiers = load_cifar100_models()
+        models = load_cifar100_models()
     elif nr_classes == 10:
-        classifiers = load_cifar10_models()
+        models = load_cifar10_models()
+    elif nr_classes == 21:
+        models = load_pascal_models()
 
     if not evaluate:
-        return classifiers
+        return models
 
+    if nr_classes == 10 or nr_classes == 100:
+        return evaluate_classification(nr_classes, models)
+    else:
+        return evaluate_segmentation(models)
+        
+
+def evaluate_segmentation(segmentors):
+    val_dataset, test_dataset = load_PascalVOC()
+    for i, s in enumerate(segmentors):
+        confmat = ConfusionMatrix(21)
+        for images, lbl in test_dataset:
+            model_pred = s(images)
+            output = model_pred['out']
+            confmat.update(lbl.flatten(), output.argmax(1).flatten())
+        print(f"stats for model {i}:")
+        print(confmat)
+        
+    return segmentors
+
+
+def evaluate_classification(nr_classes, classifiers):
     # Evaluating the individual models to have a baseline of performance
     accuracy = Accuracy(task='multiclass', num_classes=nr_classes)
     loss_fn = CEL()
@@ -298,12 +321,6 @@ def load_models(nr_classes, evaluate=False):
         c_preds_arr = np.array(c_preds)
         preds.append(c_preds_arr.flatten())
         print(f'model {i} has loss {np.mean(scores)}, and accuracy {np.mean(accs)}')
-
-#    print(preds)
-#    X_embedded = TSNE(n_components=2, learning_rate='auto', init='random', perplexity=6).fit_transform(np.array(preds))
-#    fig, ax = plt.subplots(1,1)
-#    plt.scatter(X_embedded[:,0], X_embedded[:,1], cmap=plt.cm.rainbow)
-#    plt.savefig('test_tsne.png')
 
     scores = []
     accuracies = []
