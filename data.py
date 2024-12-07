@@ -118,3 +118,45 @@ class CIFARData(pl.LightningDataModule):
 
     def test_dataloader(self):
         return self.val_dataloader()
+
+
+
+def load_PascalVOC():
+    random.seed(12345)
+    torch.manual_seed(12345)
+    np.random.seed(12345)
+
+    transform = T.Compose(
+            [
+                v2.Resize(size=(520,520)),
+                v2.ToImage(),
+                v2.ToDtype(torch.float, scale=True),
+                v2.PILToTensor(),
+                v2.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+            ]
+        )
+    target_transform = T.Compose([v2.Resize(size=(520,520)), v2.PILToTensor(),])
+    dataset = VOCSegmentation(root="/home/nadia_dobreva/PyTorch_CIFAR10/data/pascal/", image_set='val', transform=transform, target_transform=target_transform)
+
+    subset_size = 50
+    rand_start = 120 #np.random.randint(0,dataset.__len__())
+    small_dataset = Subset(dataset, range(rand_start, rand_start + subset_size))
+    val_dataloader = DataLoader(
+        small_dataset,
+        batch_size=subset_size-20,
+        num_workers=4,
+        drop_last=True,
+        pin_memory=True,
+        shuffle=True,
+    )
+
+    rest_of_dataset = Subset(dataset, list(chain(range(0, rand_start), range(rand_start+subset_size+1, len(dataset)))))
+    test_dataloader = DataLoader(
+        rest_of_dataset,
+        batch_size=128,
+        num_workers=4,
+        drop_last=True,
+        pin_memory=True,
+    )
+
+    return val_dataloader, test_dataloader
