@@ -51,13 +51,17 @@ class Evaluator:
     def __init__(
         self, nr_classes, scoring_fn, penalty, pseudo_labels=False
     ):
-        self.val_dataset, self.test_loader = CIFARData(nr_classes).test_dataloader()
+        if nr_classes == 21:
+            self.val_dataset, self.test_loader = load_PascalVOC()
+        else:
+            self.val_dataset, self.test_loader = CIFARData(nr_classes).test_dataloader()
         self.score_fn = scoring_fn
         self.penalty = penalty
 
     def run(self, models, weights, eval_type, sampler, pipeline=None):
         penalty = np.count_nonzero(weights)*self.penalty
         scores = []
+        
         if eval_type == 'validation':
             data = self.val_dataset
             val_dataloader = DataLoader(
@@ -72,6 +76,7 @@ class Evaluator:
             dataset = val_dataloader
         else:
             dataset = self.test_loader
+            
         for images, lbl in dataset:
             if pipeline is not None:
                 images, lbl = pipeline(images, lbl)
