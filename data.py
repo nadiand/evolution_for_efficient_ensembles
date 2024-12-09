@@ -96,14 +96,6 @@ class CIFARData(pl.LightningDataModule):
         subset_size = 50
         rand_start = 7037 #np.random.randint(0,dataset.__len__())
         small_dataset = Subset(dataset, range(rand_start, rand_start + subset_size))
-        val_dataloader = DataLoader(
-            small_dataset,
-            batch_size=subset_size-20,
-            num_workers=4,
-            drop_last=True,
-            pin_memory=True,
-            shuffle=True,
-        )
 
         rest_of_dataset = Subset(dataset, list(chain(range(0, rand_start), range(rand_start+subset_size+1, len(dataset)))))
         test_dataloader = DataLoader(
@@ -114,7 +106,7 @@ class CIFARData(pl.LightningDataModule):
             pin_memory=True,
         )
 
-        return val_dataloader, test_dataloader
+        return small_dataset, test_dataloader
 
     def test_dataloader(self):
         return self.val_dataloader()
@@ -141,14 +133,6 @@ def load_PascalVOC():
     subset_size = 50
     rand_start = 120 #np.random.randint(0,dataset.__len__())
     small_dataset = Subset(dataset, range(rand_start, rand_start + subset_size))
-    val_dataloader = DataLoader(
-        small_dataset,
-        batch_size=subset_size-20,
-        num_workers=4,
-        drop_last=True,
-        pin_memory=True,
-        shuffle=True,
-    )
 
     rest_of_dataset = Subset(dataset, list(chain(range(0, rand_start), range(rand_start+subset_size+1, len(dataset)))))
     test_dataloader = DataLoader(
@@ -159,4 +143,4 @@ def load_PascalVOC():
         pin_memory=True,
     )
 
-    return val_dataloader, test_dataloader
+    return small_dataset, test_dataloader
