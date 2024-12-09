@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from models import load_cifar10_models, load_cifar100_models, load_pascal_models
 from data import CIFARData, load_PascalVOC
 from conf_mat import ConfusionMatrix
+from diversity_metrics import pierson_correlation
 from torchmetrics import Accuracy
 from torch.nn import CrossEntropyLoss as CEL
 
@@ -291,15 +292,38 @@ def load_models(nr_classes, evaluate=False):
 
 def evaluate_segmentation(segmentors):
     val_dataset, test_dataset = load_PascalVOC()
+    all_proba_preds = []
     for i, s in enumerate(segmentors):
         confmat = ConfusionMatrix(21)
+        s_preds = []
         for images, lbl in test_dataset:
             model_pred = s(images)
             output = model_pred['out']
+            s_preds.append(output.detach().numpy())
             confmat.update(lbl.flatten(), output.argmax(1).flatten())
+        s_proba_arr = np.array(s_preds)
+        all_proba_preds.append(s_proba_arr.flatten())
         print(f"stats for model {i}:")
         print(confmat)
-        
+
+    piersons_dict = pierson_correlation(all_proba_preds)
+    print("diversity of models according to pierson correlation coefficient:")
+    print('pearsons coeff with pval<0.05 and abs(val) above 0.5')
+    for k in piersons_dict.keys():
+        if piersons_dict[k][1] < 0.05 and abs(piersons_dict[k][0]) > 0.5:
+            print(k, piersons_dict[k])
+
+    confmat = ConfusionMatrix(21)
+    for images, lbl in test_dataset:
+        all_outputs = []
+        for i, s in enumerate(segmentors):
+            model_pred = s(images)
+            all_outputs.append(model_pred['out'].detach().numpy())
+        output = np.mean(all_outputs, axis=0)
+        confmat.update(lbl.flatten(), output.argmax(1).flatten())
+
+    print("baseline ensemble stats:")
+    print(confmat)
     return segmentors
 
 
