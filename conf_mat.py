@@ -25,7 +25,9 @@ class ConfusionMatrix:
         h = self.mat.float()
         acc_global = torch.diag(h).sum() / h.sum()
         acc = torch.diag(h) / h.sum(1)
+        acc = torch.nan_to_num(acc, 1) # nan -> 1 in case the class is not present in the sample
         iu = torch.diag(h) / (h.sum(1) + h.sum(0) - torch.diag(h))
+        iu = torch.nan_to_num(iu, 1) # nan -> 1 in case the class is not present in the sample
         return acc_global, acc, iu
 
     def __str__(self):
