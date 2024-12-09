@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Subset
 from torchvision import transforms as T
 from torchvision.transforms import v2
-from torchvision.datasets import CIFAR10, CIFAR100
+from torchvision.datasets import CIFAR10, CIFAR100, VOCSegmentation
 from tqdm import tqdm
 
 
