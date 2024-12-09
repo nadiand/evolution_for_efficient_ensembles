@@ -4,6 +4,7 @@ import torch
 import numpy as np
 import time
 import matplotlib.pyplot as plt
+from torch.utils.data import SubsetRandomSampler, DataLoader
 
 from models import load_cifar10_models, load_cifar100_models, load_pascal_models
 from data import CIFARData, load_PascalVOC
@@ -37,30 +38,40 @@ class SimpleProblem:
         self.augment_mask = augment_mask
         self.use_both_lighting = use_both_lighting
 
-    def __call__(self, voting_weights, eval_type):
+    def __call__(self, voting_weights, eval_type, sampler):
         ensemble = []
         for i, n in enumerate(voting_weights):
             if n:
                 ensemble.append(self.model_lib[i])
         norm_weights = [float(w)/sum(voting_weights) for w in voting_weights]
-        score = self.evaluator.run(ensemble, norm_weights, eval_type)
+        score = self.evaluator.run(ensemble, norm_weights, eval_type, sampler)
         return score
 
 class Evaluator:
     def __init__(
         self, nr_classes, scoring_fn, penalty, pseudo_labels=False
     ):
-        self.dataset, self.testset = CIFARData(nr_classes).test_dataloader()
+        self.val_dataset, self.test_loader = CIFARData(nr_classes).test_dataloader()
         self.score_fn = scoring_fn
         self.penalty = penalty
 
-    def run(self, models, weights, eval_type, pipeline=None):
+    def run(self, models, weights, eval_type, sampler, pipeline=None):
         penalty = np.count_nonzero(weights)*self.penalty
         scores = []
         if eval_type == 'validation':
-            dataset = self.dataset
+            data = self.val_dataset
+            val_dataloader = DataLoader(
+                data,
+                batch_size=30,
+                num_workers=4,
+                drop_last=True,
+                pin_memory=True,
+                sampler=sampler,
+                shuffle=False,
+            )
+            dataset = val_dataloader
         else:
-            dataset = self.testset
+            dataset = self.test_loader
         for images, lbl in dataset:
             if pipeline is not None:
                 images, lbl = pipeline(images, lbl)
@@ -184,8 +195,10 @@ def reproduce(population, history, g, population_size, N_models, threshold):
 
 
 def evaluate_population(population, problem, eval_type):
+    indices = np.random.randint(0, 50, 30)
+    sampler = SubsetRandomSampler(indices=indices)
     for candidate in population:
-        fitness = problem(candidate(), eval_type)
+        fitness = problem(candidate(), eval_type, sampler)
         candidate.set_fitness(fitness)
     return population
 
@@ -291,7 +304,7 @@ def load_models(nr_classes, evaluate=False):
         
 
 def evaluate_segmentation(segmentors):
-    val_dataset, test_dataset = load_PascalVOC()
+    _, test_dataset = load_PascalVOC()
     all_proba_preds = []
     for i, s in enumerate(segmentors):
         confmat = ConfusionMatrix(21)
@@ -331,7 +344,7 @@ def evaluate_classification(nr_classes, classifiers):
     # Evaluating the individual models to have a baseline of performance
     accuracy = Accuracy(task='multiclass', num_classes=nr_classes)
     loss_fn = CEL()
-    val_dataset, test_dataset = CIFARData(nr_classes).test_dataloader()
+    _, test_dataset = CIFARData(nr_classes).test_dataloader()
     preds = []
     for i, c in enumerate(classifiers):
         scores, accs = [], []
