@@ -263,7 +263,6 @@ def load_models(nr_classes, evaluate=False):
 
 def evaluate_segmentation(segmentors):
     _, test_dataset = load_PascalVOC()
-    all_proba_preds = []
     for i, s in enumerate(segmentors):
         confmat = ConfusionMatrix(21)
         s_preds = []
@@ -273,16 +272,9 @@ def evaluate_segmentation(segmentors):
             s_preds.append(output.detach().numpy())
             confmat.update(lbl.flatten(), output.argmax(1).flatten())
         s_proba_arr = np.array(s_preds)
-        all_proba_preds.append(s_proba_arr.flatten())
         print(f"stats for model {i}:")
         print(confmat)
-
-    piersons_dict = pierson_correlation(all_proba_preds)
-    print("diversity of models according to pierson correlation coefficient:")
-    print('pearsons coeff with pval<0.05 and abs(val) above 0.5')
-    for k in piersons_dict.keys():
-        if piersons_dict[k][1] < 0.05 and abs(piersons_dict[k][0]) > 0.5:
-            print(k, piersons_dict[k])
+        np.save(f"/dataB3/nadia_dobreva/model{i}_preds", s_proba_arr.flatten())
 
     confmat = ConfusionMatrix(21)
     for images, lbl in test_dataset:
