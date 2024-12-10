@@ -9,6 +9,7 @@ from torch.utils.data import SubsetRandomSampler, DataLoader
 from models import load_cifar10_models, load_cifar100_models, load_pascal_models
 from data import CIFARData, load_PascalVOC
 from conf_mat import ConfusionMatrix
+from evaluator import Evaluator
 from diversity_metrics import pierson_correlation
 from torchmetrics import Accuracy
 from torch.nn import CrossEntropyLoss as CEL
@@ -47,54 +48,6 @@ class SimpleProblem:
         score = self.evaluator.run(ensemble, norm_weights, eval_type, sampler)
         return score
 
-class Evaluator:
-    def __init__(
-        self, nr_classes, scoring_fn, penalty, pseudo_labels=False
-    ):
-        if nr_classes == 21:
-            self.val_dataset, self.test_loader = load_PascalVOC()
-        else:
-            self.val_dataset, self.test_loader = CIFARData(nr_classes).test_dataloader()
-        self.score_fn = scoring_fn
-        self.penalty = penalty
-
-    def run(self, models, weights, eval_type, sampler, pipeline=None):
-        penalty = np.count_nonzero(weights)*self.penalty
-        scores = []
-        
-        if eval_type == 'validation':
-            data = self.val_dataset
-            val_dataloader = DataLoader(
-                data,
-                batch_size=30,
-                num_workers=4,
-                drop_last=True,
-                pin_memory=True,
-                sampler=sampler,
-                shuffle=False,
-            )
-            dataset = val_dataloader
-        else:
-            dataset = self.test_loader
-            
-        for images, lbl in dataset:
-            if pipeline is not None:
-                images, lbl = pipeline(images, lbl)
-            if len(models) > 1:
-                all_outputs = []
-                for i, m in enumerate(models):
-                    model_pred = m(images).detach().numpy()
-                    model_weights = np.empty_like(model_pred)
-                    model_weights.fill(weights[i])
-                    all_outputs.append(model_pred * model_weights)
-                output = sum(all_outputs)
-            else:
-                output = models[0](images)
-
-            scores.append(self.score_fn(torch.Tensor(output), torch.Tensor(lbl)))
-
-        score = np.mean(scores) + penalty
-        return score
 
 def initialize_population(population_size, N_models, threshold, history, g):
     population = []
@@ -273,7 +226,7 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
     scores = []
     accuracy = Accuracy(task='multiclass', num_classes=nr_classes)
     norm_weights = [float(w)/sum(best_candidate.voting_weights) for w in best_candidate.voting_weights]
-    for images, lbl in evaluator.testset:
+    for images, lbl in evaluator.test_loader:
         all_outputs = []
         for i, m in enumerate(ensemble):
             model_pred = m(images).detach().numpy()
