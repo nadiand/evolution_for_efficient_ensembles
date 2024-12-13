@@ -192,8 +192,7 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
 
     ensemble = []
     for i, n in enumerate(best_candidate.voting_weights):
-        if n:
-            ensemble.append(problem.model_lib[i])
+        ensemble.append(problem.model_lib[i])
     if nr_classes == 21:
         eval_best_segmentation(best_candidate, ensemble, evaluator)
     else:
