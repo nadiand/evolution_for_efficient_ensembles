@@ -9,7 +9,7 @@ from torch.utils.data import SubsetRandomSampler, DataLoader
 from models import load_cifar10_models, load_cifar100_models, load_pascal_models
 from data import CIFARData, load_PascalVOC
 from conf_mat import ConfusionMatrix
-from evaluator import Evaluator
+from evaluator import Evaluator, EvaluatorSegmentation
 from candidate import Candidate, SimpleProblem
 from diversity_metrics import pierson_correlation
 from torchmetrics import Accuracy
@@ -145,11 +145,12 @@ def select(parents, offspring, population_size):
 
     return selection_pool[0], selection_pool[:population_size]
 
+
 def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
         use_both_lighting=False, use_pseudo_label=False, augment_mask=True):
 
     penalty = 0.05
-    evaluator = Evaluator(nr_classes, scoring_fn, penalty, use_pseudo_label)
+    evaluator = EvaluatorSegmentation(nr_classes, scoring_fn, penalty, use_pseudo_label)
     problem = SimpleProblem(model_lib, evaluator, pipeline, augment_mask, use_both_lighting)
 
     n_gen = 20
@@ -181,6 +182,9 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
         print((f"Generation: {g+1}, best fitness: {best_candidate.fitness}, ensemble: {best_candidate.voting_weights}, gen found: {best_candidate.generation}"))
         print("-"*80)
 
+    print(f"Total time it took to do {n_gen} epochs: {time_per_epoch}")
+    print(f"Time it took to do one epoch: {time_per_epoch/n_gen}")
+
     best_candidate = evaluate_population([best_candidate], problem, 'test')[0]
     fitness_no_penalty = best_candidate.fitness - penalty*np.count_nonzero(best_candidate.voting_weights)
     print(f"Best fitness on testset without penalty: {fitness_no_penalty}")
@@ -189,13 +193,35 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
     for i, n in enumerate(best_candidate.voting_weights):
         if n:
             ensemble.append(problem.model_lib[i])
+    if nr_classes == 21:
+        eval_best_segmentation(best_candidate, ensemble, evaluator)
+    else:
+        eval_best_classification(best_candidate, ensemble, nr_classes, evaluator)
 
+
+def eval_best_segmentation(best_candidate, segmentors, evaluator):
+    confmat = ConfusionMatrix(21)
+    norm_weights = [float(w)/sum(best_candidate.voting_weights) for w in best_candidate.voting_weights]
+    for images, lbl in evaluator.test_loader:
+        all_outputs = []
+        for i, s in enumerate(segmentors):
+            model_pred = s(images)
+            model_weights = np.empty_like(model_pred)
+            model_weights.fill(norm_weights[i])
+            all_outputs.append(model_pred['out'].detach().numpy() * model_weights)
+        output = sum(all_outputs)
+        confmat.update(lbl.flatten(), output.argmax(1).flatten())
+    print("Best performance on testset without penalty:")
+    print(confmat)
+
+
+def eval_best_classification(best_candidate, classifiers, nr_classes, evaluator):
     scores = []
     accuracy = Accuracy(task='multiclass', num_classes=nr_classes)
     norm_weights = [float(w)/sum(best_candidate.voting_weights) for w in best_candidate.voting_weights]
     for images, lbl in evaluator.test_loader:
         all_outputs = []
-        for i, m in enumerate(ensemble):
+        for i, m in enumerate(classifiers):
             model_pred = m(images).detach().numpy()
             model_weights = np.empty_like(model_pred)
             model_weights.fill(norm_weights[i])
@@ -205,8 +231,7 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
     score = np.mean(scores)
     print(f"Best accuracy on testset without penalty: {score}")
 
-    print(f"Total time it took to do {n_gen} epochs: {time_per_epoch}")
-    print(f"Time it took to do one epoch: {time_per_epoch/n_gen}")
+    
 
     return best_candidate.voting_weights
 
