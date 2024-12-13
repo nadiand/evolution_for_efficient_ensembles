@@ -49,3 +49,53 @@ class Evaluator:
 
         score = np.mean(scores) + penalty
         return score
+
+
+class EvaluatorSegmentation:
+    def __init__(
+        self, nr_classes, scoring_fn, penalty, pseudo_labels=False
+    ):
+        self.val_dataset, self.test_loader = load_PascalVOC()
+        self.score_fn = scoring_fn
+        self.penalty = penalty
+        self.num_classes = nr_classes
+
+    def run(self, models, weights, eval_type, sampler, pipeline=None):
+        penalty = np.count_nonzero(weights)*self.penalty
+        scores = []
+
+        if eval_type == 'validation':
+            batch_size = 30
+            data = self.val_dataset
+            val_dataloader = DataLoader(
+                data,
+                batch_size=batch_size,
+                num_workers=4,
+                drop_last=True,
+                pin_memory=True,
+                sampler=sampler,
+                shuffle=False,
+            )
+            dataset = val_dataloader
+        else:
+            batch_size = 1
+            dataset = self.test_loader
+
+        for images, lbl in dataset:
+            if len(models) > 1:
+                all_outputs = []
+                for i, m in enumerate(models):
+                    model_pred = m(images)
+                    model_pred = model_pred['out'].detach().numpy()
+                    model_weights = np.empty_like(model_pred)
+                    model_weights.fill(weights[i])
+                    all_outputs.append(model_pred * model_weights)
+                output = sum(all_outputs)
+            else:
+                output = models[0](images)['out']
+
+            loss = self.score_fn(torch.Tensor(output), torch.Tensor(lbl).to(torch.long).reshape((batch_size,520,520)), ignore_index=255)
+            scores.append(loss.item())
+
+        score = np.mean(scores) + penalty
+        return score
