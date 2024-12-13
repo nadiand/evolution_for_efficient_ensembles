@@ -5,6 +5,7 @@ import numpy as np
 import time
 import matplotlib.pyplot as plt
 from torch.utils.data import SubsetRandomSampler, DataLoader
+from torch import nn
 
 from models import load_cifar10_models, load_cifar100_models, load_pascal_models
 from data import CIFARData, load_PascalVOC
@@ -198,6 +199,8 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
     else:
         eval_best_classification(best_candidate, ensemble, nr_classes, evaluator)
 
+    return best_candidate.voting_weights
+
 
 def eval_best_segmentation(best_candidate, segmentors, evaluator):
     confmat = ConfusionMatrix(21)
@@ -319,7 +322,8 @@ def evaluate_classification(nr_classes, classifiers):
 
 if __name__ == "__main__":
     nr_classes = 100
+    scoring_fn = nn.functional.cross_entropy
 
-    best_voting_weights = select_ensemble(model_lib=load_models(nr_classes), nr_classes=nr_classes, scoring_fn=CEL(), seed=0, pipeline = None,
-        use_both_lighting=False, use_pseudo_label=False, augment_mask=True)
+    best_voting_weights = select_ensemble(model_lib=load_models(nr_classes), nr_classes=nr_classes, scoring_fn=scoring_fn, seed=0, 
+                                          pipeline = None, use_both_lighting=False, use_pseudo_label=False, augment_mask=True)
     print(best_voting_weights)
