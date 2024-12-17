@@ -190,20 +190,22 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
     fitness_no_penalty = best_candidate.fitness - penalty*np.count_nonzero(best_candidate.voting_weights)
     print(f"Best fitness on testset without penalty: {fitness_no_penalty}")
 
-    ensemble = []
+    ensemble, weights = [], []
     for i, n in enumerate(best_candidate.voting_weights):
-        ensemble.append(problem.model_lib[i])
+        if n:
+            ensemble.append(problem.model_lib[i])
+            weights.append(n)
     if nr_classes == 21:
-        eval_best_segmentation(best_candidate, ensemble, evaluator)
+        eval_best_segmentation(weights, ensemble, evaluator)
     else:
-        eval_best_classification(best_candidate, ensemble, nr_classes, evaluator)
+        eval_best_classification(weights, ensemble, nr_classes, evaluator)
 
     return best_candidate.voting_weights
 
 
 def eval_best_segmentation(best_candidate, segmentors, evaluator):
     confmat = ConfusionMatrix(21)
-    norm_weights = [float(w)/sum(best_candidate.voting_weights) for w in best_candidate.voting_weights]
+    norm_weights = [float(w)/sum(best_candidate) for w in best_candidate]
     for images, lbl in evaluator.test_loader:
         all_outputs = []
         for i, s in enumerate(segmentors):
@@ -220,7 +222,7 @@ def eval_best_segmentation(best_candidate, segmentors, evaluator):
 def eval_best_classification(best_candidate, classifiers, nr_classes, evaluator):
     scores = []
     accuracy = Accuracy(task='multiclass', num_classes=nr_classes)
-    norm_weights = [float(w)/sum(best_candidate.voting_weights) for w in best_candidate.voting_weights]
+    norm_weights = [float(w)/sum(best_candidate) for w in best_candidate]
     for images, lbl in evaluator.test_loader:
         all_outputs = []
         for i, m in enumerate(classifiers):
