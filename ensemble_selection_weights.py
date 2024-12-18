@@ -146,20 +146,25 @@ def evaluate_population(population, problem, eval_type):
         candidate.set_fitness(fitness)
     return population
 
-def select_with_elitism(parents, offspring, population_size):
-    parents.sort(key=lambda x: x.fitness)
-    new_population = parents[:int(population_size*0.2)] # 20% of the old population, the elites, get to be part of new population
-    offspring.sort(key=lambda x: x.fitness)
+def select_with_elitism(population, population_size):
+    old, new = [], []
+    for p in population:
+        if p.generation == curr_g:
+            new.append(p)
+        elif p.generation < curr_g:
+            old.append(p)
+    old.sort(key=lambda x: x.fitness)
+    new_population = old[:int(population_size*0.1)] # 20% of the old population, the elites, get to be part of new population
+    new.sort(key=lambda x: x.fitness)
     i = 0
     while len(new_population) < population_size:
-        new_population.append(offspring[i])
+        new_population.append(new[i])
         i += 1
     new_population.sort(key=lambda x: x.fitness)
     return new_population[0], new_population
 
 
-def select(parents, offspring, population_size):
-    selection_pool = parents + offspring
+def select(selection_pool, population_size):
     selection_pool.sort(key=lambda x: x.fitness)
 
     return selection_pool[0], selection_pool[:population_size]
@@ -189,8 +194,9 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
     for g in range(n_gen):
         start_epoch = time.time()
         offspring, history = reproduce(population, history, g+1, population_size, N_models, threshold)
-        offspring = evaluate_population(offspring, problem, 'validation')
-        best_candidate, population = select_with_elitism(population, offspring, population_size)
+        candidate_population = population + offspring
+        candidate_population = evaluate_population(candidate_population, problem, 'validation')
+        best_candidate, population = select_with_elitism(candidate_population, offspring, population_size)
         end_epoch = time.time()
         time_per_epoch += (end_epoch - start_epoch)
         print("Current population:")
@@ -217,8 +223,6 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
         eval_best_segmentation(weights, ensemble, evaluator)
     else:
         eval_best_classification(weights, ensemble, nr_classes, evaluator)
-
-    return best_candidate.voting_weights
 
 
 def eval_best_segmentation(best_candidate, segmentors, evaluator):
