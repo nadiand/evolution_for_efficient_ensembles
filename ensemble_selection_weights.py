@@ -46,6 +46,24 @@ def mutate(ensemble, mutation_type, threshold, generation):
 
     return ensemble
 
+
+def mutate_population(population, history, g, population_size, threshold):
+    new_population = []
+    index = 0
+    fitnesses = np.array([1/p.fitness for p in population])
+    prob = fitnesses / np.sum(fitnesses)
+
+    while index < population_size:
+        individual = np.random.choice(population, p=prob, size=1)[0]
+        child = mutate(individual.voting_weights, "all", threshold, g-1)
+        if not (np.all(child==history, axis=2).any()):
+            history[g, index] = child
+            new_population.append(Candidate(child, g))
+            index += 1
+
+    return new_population, history
+    
+
 def reproduce_uniform(population, history, g, population_size, N_models, threshold):
     new_population = []
     index = 0
