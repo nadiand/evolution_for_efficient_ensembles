@@ -146,7 +146,7 @@ def evaluate_population(population, problem, eval_type):
         candidate.set_fitness(fitness)
     return population
 
-def select_with_elitism(population, population_size):
+def select_with_elitism(population, population_size, curr_g):
     old, new = [], []
     for p in population:
         if p.generation == curr_g:
@@ -196,7 +196,7 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
         offspring, history = reproduce(population, history, g+1, population_size, N_models, threshold)
         candidate_population = population + offspring
         candidate_population = evaluate_population(candidate_population, problem, 'validation')
-        best_candidate, population = select_with_elitism(candidate_population, offspring, population_size)
+        best_candidate, population = select_with_elitism(candidate_population, population_size, g+1)
         end_epoch = time.time()
         time_per_epoch += (end_epoch - start_epoch)
         print("Current population:")
@@ -223,6 +223,7 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
         eval_best_segmentation(weights, ensemble, evaluator)
     else:
         eval_best_classification(weights, ensemble, nr_classes, evaluator)
+    return best_candidate.voting_weights
 
 
 def eval_best_segmentation(best_candidate, segmentors, evaluator):
@@ -256,10 +257,6 @@ def eval_best_classification(best_candidate, classifiers, nr_classes, evaluator)
         scores.append(accuracy(target=torch.Tensor(lbl), preds=torch.Tensor(output)))
     score = np.mean(scores)
     print(f"Best accuracy on testset without penalty: {score}")
-
-    
-
-    return best_candidate.voting_weights
 
 
 def load_models(nr_classes, evaluate=False):
