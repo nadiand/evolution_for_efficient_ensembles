@@ -139,7 +139,7 @@ def reproduce(population, history, g, population_size, N_models, threshold):
 
 
 def evaluate_population(population, problem, eval_type, gen):
-    if gen == 20:
+    if gen == 0:
         nr_samples = 50
     else:
         nr_samples = 30
@@ -190,7 +190,7 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
 
     history = np.zeros((n_gen+1, population_size, N_models))
     population, history = initialize_population(population_size, N_models, threshold, history, 0)
-    population = evaluate_population(population, problem, 'validation', 0)
+    population = evaluate_population(population, problem, 'validation', n_gen)
     print("Init pop:")
     for p in population:
         print(p.voting_weights, p.fitness, p.generation)
@@ -199,7 +199,7 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
         start_epoch = time.time()
         offspring, history = reproduce(population, history, g+1, population_size, N_models, threshold)
         candidate_population = population + offspring
-        candidate_population = evaluate_population(candidate_population, problem, 'validation', g+1)
+        candidate_population = evaluate_population(candidate_population, problem, 'validation', n_gen-(g+1))
         best_candidate, population = select_with_elitism(candidate_population, population_size, g+1)
         end_epoch = time.time()
         time_per_epoch += (end_epoch - start_epoch)
@@ -214,7 +214,7 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
     print(f"Total time it took to do {n_gen} epochs: {time_per_epoch}")
     print(f"Time it took to do one epoch: {time_per_epoch/n_gen}")
 
-    best_candidate = evaluate_population([best_candidate], problem, 'test', g+2)[0]
+    best_candidate = evaluate_population([best_candidate], problem, 'test', n_gen)[0]
     fitness_no_penalty = best_candidate.fitness - penalty*np.count_nonzero(best_candidate.voting_weights)
     print(f"Best fitness on testset without penalty: {fitness_no_penalty}")
 
