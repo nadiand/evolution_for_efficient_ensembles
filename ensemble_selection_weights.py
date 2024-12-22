@@ -15,6 +15,7 @@ from candidate import Candidate, SimpleProblem
 from diversity_metrics import pierson_correlation
 from torchmetrics import Accuracy
 from torch.nn import CrossEntropyLoss as CEL
+import torchvision.transforms.functional as F
 
 
 def initialize_population(population_size, N_models, threshold, history, g):
@@ -236,7 +237,8 @@ def eval_best_segmentation(best_candidate, segmentors, evaluator):
     for images, lbl in evaluator.test_loader:
         all_outputs = []
         for i, s in enumerate(segmentors):
-            model_pred = s(images)
+            adjusted_images = F.adjust_brightness(images, brightness_factor=0.8)
+            model_pred = s(adjusted_images)
             model_weights = np.empty_like(model_pred)
             model_weights.fill(norm_weights[i])
             all_outputs.append(model_pred['out'].detach().numpy() * model_weights)
@@ -286,7 +288,8 @@ def evaluate_segmentation(segmentors):
         confmat = ConfusionMatrix(21)
         s_preds = []
         for images, lbl in test_dataset:
-            model_pred = s(images)
+            adjusted_images = F.adjust_brightness(images, brightness_factor=0.8)
+            model_pred = s(adjusted_images)
             output = model_pred['out']
             s_preds.append(output.detach().numpy())
             confmat.update(lbl.flatten(), output.argmax(1).flatten())
@@ -299,7 +302,8 @@ def evaluate_segmentation(segmentors):
     for images, lbl in test_dataset:
         all_outputs = []
         for i, s in enumerate(segmentors):
-            model_pred = s(images)
+            adjusted_images = F.adjust_brightness(images, brightness_factor=0.8)
+            model_pred = s(adjusted_images)
             all_outputs.append(model_pred['out'].detach().numpy())
         output = np.mean(all_outputs, axis=0)
         confmat.update(lbl.flatten(), output.argmax(1).flatten())
