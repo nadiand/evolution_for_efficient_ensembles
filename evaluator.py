@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from data import CIFARData, load_PascalVOC
+import torchvision.transforms.functional as F
 
 
 class Evaluator:
@@ -82,10 +83,11 @@ class EvaluatorSegmentation:
             dataset = self.test_loader
 
         for images, lbl in dataset:
+            adjusted_images = F.adjust_brightness(images, brightness_factor=0.8)
             if len(models) > 1:
                 all_outputs = []
                 for i, m in enumerate(models):
-                    model_pred = m(images)
+                    model_pred = m(adjusted_images)
                     model_pred = model_pred['out'].detach().numpy()
                     model_weights = np.empty_like(model_pred)
                     model_weights.fill(weights[i])
