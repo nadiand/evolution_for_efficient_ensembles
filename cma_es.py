@@ -12,7 +12,7 @@ from torch import nn
 from torch.utils.data import SubsetRandomSampler
 
 from conf_mat import ConfusionMatrix
-from cifar100_ensemble_selection_weights import Evaluator, EvaluatorSegmentation
+from evaluator import Evaluator, EvaluatorSegmentation
 from models import load_cifar10_models, load_cifar100_models, load_pascal_models
 
 
@@ -39,7 +39,7 @@ class SimpleProblem(ElementwiseProblem):
             ensemble.append(self.model_lib[i])
         norm_weights = [float(w)/sum(voting_weights) for w in voting_weights]
 
-        indices = np.random.randint(0, 50, 30)
+        indices = np.arange(0, 50)
         sampler = SubsetRandomSampler(indices=indices)
         score = self.evaluator.run(ensemble, norm_weights, "validation", sampler=sampler)
 
@@ -126,10 +126,6 @@ penalty = 0
 
 best_candidate, score = optimize_CMAES(optimization_cfg={"n_pop":50, "n_gen":20}, model_lib=model_lib, nr_classes=num_class, scoring_function=scoring_function, penalty=penalty)
 print(best_candidate, score)
-
-ensemble = []
-for i, n in enumerate(best_candidate):
-    ensemble.append(model_lib[i])
 
 ensemble = []
 for i, n in enumerate(best_candidate):
