@@ -24,10 +24,11 @@ class SimpleProblem:
         self.use_both_lighting = use_both_lighting
 
     def __call__(self, voting_weights, eval_type, sampler):
-        ensemble = []
+        ensemble, weights = [], []
         for i, n in enumerate(voting_weights):
             if n:
                 ensemble.append(self.model_lib[i])
-        norm_weights = [float(w)/sum(voting_weights) for w in voting_weights]
+                weights.append(voting_weights[i])
+        norm_weights = [float(w)/sum(weights) for w in weights]
         score = self.evaluator.run(ensemble, norm_weights, eval_type, sampler)
         return score
