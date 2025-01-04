@@ -14,7 +14,7 @@ class Evaluator:
         self.penalty = penalty
 
     def run(self, models, weights, eval_type, sampler, pipeline=None):
-        penalty = np.count_nonzero(weights)*self.penalty
+        penalty = len(weights)*self.penalty
         scores = []
 
         if eval_type == 'validation':
@@ -62,7 +62,7 @@ class EvaluatorSegmentation:
         self.num_classes = nr_classes
 
     def run(self, models, weights, eval_type, sampler, pipeline=None):
-        penalty = np.count_nonzero(weights)*self.penalty
+        penalty = len(weights)*self.penalty
         scores = []
 
         if eval_type == 'validation':
@@ -94,7 +94,7 @@ class EvaluatorSegmentation:
                     all_outputs.append(model_pred * model_weights)
                 output = sum(all_outputs)
             else:
-                output = models[0](images)['out']
+                output = models[0](adjusted_images)['out']
 
             loss = self.score_fn(torch.Tensor(output), torch.Tensor(lbl).to(torch.long).reshape((batch_size,520,520)), ignore_index=255)
             scores.append(loss.item())
