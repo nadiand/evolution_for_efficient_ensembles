@@ -144,7 +144,7 @@ def evaluate_population(population, problem, eval_type, gen):
         nr_samples = 50
     else:
         nr_samples = 30
-    indices = np.random.randint(0, 50, nr_samples)
+    indices = np.random.choice(range(0, 50), size=nr_samples, replace=False)
     sampler = SubsetRandomSampler(indices=indices)
     for candidate in population:
         fitness = problem(candidate(), eval_type, sampler)
