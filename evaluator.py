@@ -83,7 +83,9 @@ class EvaluatorSegmentation:
             dataset = self.test_loader
 
         for images, lbl in dataset:
-            adjusted_images = F.adjust_brightness(images, brightness_factor=0.8)
+            adjusted_images = images*0.6
+            adjusted_images[adjusted_images < -3] = -3
+            adjusted_images[adjusted_images > 3] = 3
             if len(models) > 1:
                 all_outputs = []
                 for i, m in enumerate(models):
