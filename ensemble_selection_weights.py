@@ -237,7 +237,9 @@ def eval_best_segmentation(best_candidate, segmentors, evaluator):
     for images, lbl in evaluator.test_loader:
         all_outputs = []
         for i, s in enumerate(segmentors):
-            adjusted_images = F.adjust_brightness(images, brightness_factor=0.8)
+            adjusted_images = images*0.6
+            adjusted_images[adjusted_images < -3] = -3
+            adjusted_images[adjusted_images > 3] = 3
             model_pred = s(adjusted_images)
             model_weights = np.empty_like(model_pred)
             model_weights.fill(norm_weights[i])
@@ -288,7 +290,9 @@ def evaluate_segmentation(segmentors):
         confmat = ConfusionMatrix(21)
         s_preds = []
         for images, lbl in test_dataset:
-            adjusted_images = F.adjust_brightness(images, brightness_factor=0.8)
+            adjusted_images = images*0.6
+            adjusted_images[adjusted_images < -3] = -3
+            adjusted_images[adjusted_images > 3] = 3
             model_pred = s(adjusted_images)
             output = model_pred['out']
             s_preds.append(output.detach().numpy())
@@ -302,7 +306,9 @@ def evaluate_segmentation(segmentors):
     for images, lbl in test_dataset:
         all_outputs = []
         for i, s in enumerate(segmentors):
-            adjusted_images = F.adjust_brightness(images, brightness_factor=0.8)
+            adjusted_images = images*0.6
+            adjusted_images[adjusted_images < -3] = -3
+            adjusted_images[adjusted_images > 3] = 3
             model_pred = s(adjusted_images)
             all_outputs.append(model_pred['out'].detach().numpy())
         output = np.mean(all_outputs, axis=0)
