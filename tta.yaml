@@ -1,0 +1,65 @@
+# Learning a single image pipeline to transform images
+use_both_lighting: False
+
+# Which class indices to use for optimization
+optimization_classes: [0, 1, 2, 3]
+
+# In-case of label map augmentations this needs to be turned on
+augment_mask: True
+
+# Always false when using CMA-ES
+# TODO: Working on another optimizer which also optimizes the order
+optimise_order: False
+##
+
+
+## Model library parameters
+#  location of the models
+model_path: /dataB1/aoi/benchmarks/model_library/general_models
+# Version, which is appended to the model_path
+version: v1
+##
+
+## Dataset formatting parameters
+# Dataset location after aoi-preprocessing
+# TODO: Needs adjustments to work with log-cases
+#  - train & dir are the same for log-cases
+data_path: /dataB1/aoi/benchmarks/specific_device/unisem_rp2040
+train_dir: train
+test_dir: test
+
+# Used to encode the labels for TTA
+num_classes: 4
+##
+
+
+## Final evaluation parameters
+# All used for the AOIS class
+overlay_idx: 0
+# Used for AOIS to calculate the metrics
+classes: ["wire", "ball", "wedge", "epoxy"]
+ap_thresholds: {"ball": 0.6, "wedge": 0.5}
+n_seeds: 5
+##
+
+## Pipeline augmentation parameters
+# Augmentations to optimize for both pipelines, by default
+# resizing the input image is always optimized before they are passed
+# to the pipelines.
+augs:
+  - name: adjust_brightness
+    args:
+    - name: delta
+      init: 1.0
+      init_sigma: 0.1 #5.0
+      sigma: 0.1 #5.0
+      min: -3 #-100.0
+      max: 3 #100.0
+  - name: adjust_contrast
+    args:
+    - name: alpha
+      init: 1.0
+      init_sigma: 0.1
+      sigma: 0.1
+      min: 0.5
+      max: 1.5
