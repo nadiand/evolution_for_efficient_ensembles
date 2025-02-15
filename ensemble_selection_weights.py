@@ -7,10 +7,10 @@ import matplotlib.pyplot as plt
 from torch.utils.data import SubsetRandomSampler, DataLoader
 from torch import nn
 
-from models import load_cifar10_models, load_cifar100_models, load_pascal_models
+from models import load_cifar10_models, load_cifar100_models, load_pascal_models, load_pascal_preds
 from data import CIFARData, load_PascalVOC
 from conf_mat import ConfusionMatrix
-from evaluator import Evaluator, EvaluatorSegmentation
+from evaluator import Evaluator, EvaluatorSegmentation, EvaluatorPredictions
 from candidate import Candidate, SimpleProblem
 from diversity_metrics import pierson_correlation
 from torchmetrics import Accuracy
@@ -139,7 +139,7 @@ def reproduce(population, history, g, population_size, N_models, threshold):
     return new_population, history
 
 
-def evaluate_population(population, problem, eval_type, gen):
+def evaluate_population(population, problem, eval_type, gen, load_preds=False):
     if gen == 0:
         nr_samples = 50
     else:
@@ -147,7 +147,10 @@ def evaluate_population(population, problem, eval_type, gen):
     indices = np.random.choice(range(0, 50), size=nr_samples, replace=False)
     sampler = SubsetRandomSampler(indices=indices)
     for candidate in population:
-        fitness = problem(candidate(), eval_type, sampler)
+        if load_preds:
+            fitness = problem(candidate(), eval_type, indices)
+        else:
+            fitness = problem(candidate(), eval_type, sampler)
         candidate.set_fitness(fitness)
     return population
 
@@ -176,10 +179,13 @@ def select(selection_pool, population_size):
 
 
 def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
-        use_both_lighting=False, use_pseudo_label=False, augment_mask=True):
+        use_both_lighting=False, use_pseudo_label=False, augment_mask=True, load_preds=False):
 
     penalty = 0.05
-    evaluator = EvaluatorSegmentation(nr_classes, scoring_fn, penalty, use_pseudo_label)
+    if load_preds:
+        evaluator = EvaluatorPredictions(nr_classes, scoring_fn, penalty, use_pseudo_label)
+    else:
+        evaluator = EvaluatorSegmentation(nr_classes, scoring_fn, penalty, use_pseudo_label)
     problem = SimpleProblem(model_lib, evaluator, pipeline, augment_mask, use_both_lighting)
 
     n_gen = 20
@@ -191,7 +197,7 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
 
     history = np.zeros((n_gen+1, population_size, N_models))
     population, history = initialize_population(population_size, N_models, threshold, history, 0)
-    population = evaluate_population(population, problem, 'validation', n_gen)
+    population = evaluate_population(population, problem, 'validation', n_gen, load_preds=load_preds)
     print("Init pop:")
     for p in population:
         print(p.voting_weights, p.fitness, p.generation)
@@ -200,7 +206,7 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
         start_epoch = time.time()
         offspring, history = reproduce(population, history, g+1, population_size, N_models, threshold)
         candidate_population = population + offspring
-        candidate_population = evaluate_population(candidate_population, problem, 'validation', n_gen-(g+1))
+        candidate_population = evaluate_population(candidate_population, problem, 'validation', n_gen-(g+1), load_preds=load_preds)
         best_candidate, population = select_with_elitism(candidate_population, population_size, g+1)
         end_epoch = time.time()
         time_per_epoch += (end_epoch - start_epoch)
@@ -215,14 +221,15 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
     print(f"Total time it took to do {n_gen} epochs: {time_per_epoch}")
     print(f"Time it took to do one epoch: {time_per_epoch/n_gen}")
 
-    best_candidate = evaluate_population([best_candidate], problem, 'test', n_gen)[0]
+    best_candidate = evaluate_population([best_candidate], problem, 'test', n_gen, load_preds=load_preds)[0]
     fitness_no_penalty = best_candidate.fitness - penalty*np.count_nonzero(best_candidate.voting_weights)
     print(f"Best fitness on testset without penalty: {fitness_no_penalty}")
 
+    models = load_pascal_models()
     ensemble, weights = [], []
     for i, n in enumerate(best_candidate.voting_weights):
         if n:
-            ensemble.append(problem.model_lib[i])
+            ensemble.append(models[i])
             weights.append(n)
     if nr_classes == 21:
         eval_best_segmentation(weights, ensemble, evaluator)
@@ -267,13 +274,16 @@ def eval_best_classification(best_candidate, classifiers, nr_classes, evaluator)
     print(f"Best accuracy on testset without penalty: {score}")
 
 
-def load_models(nr_classes, evaluate=False):
+def load_models(nr_classes, evaluate=False, load_preds=False):
     if nr_classes == 100:
         models = load_cifar100_models()
     elif nr_classes == 10:
         models = load_cifar10_models()
     elif nr_classes == 21:
-        models = load_pascal_models()
+        if load_preds:
+            models = load_pascal_preds()
+        else:
+            models = load_pascal_models()
 
     if not evaluate:
         return models
@@ -301,6 +311,7 @@ def evaluate_segmentation(segmentors):
         print(f"stats for model {i}:")
         print(confmat)
         np.save(f"/dataB3/nadia_dobreva/model{i}_preds", s_proba_arr.flatten())
+        torch.save(torch.Tensor(np.array(s_proba_arr)), f"/dataB3/nadia_dobreva/model{i}_tensor_preds.pt")
 
     confmat = ConfusionMatrix(21)
     for images, lbl in test_dataset:
@@ -357,7 +368,8 @@ def evaluate_classification(nr_classes, classifiers):
 if __name__ == "__main__":
     nr_classes = 100
     scoring_fn = nn.functional.cross_entropy
+    load_preds = False
 
-    best_voting_weights = select_ensemble(model_lib=load_models(nr_classes), nr_classes=nr_classes, scoring_fn=scoring_fn, seed=0, 
-                                          pipeline = None, use_both_lighting=False, use_pseudo_label=False, augment_mask=True)
+    best_voting_weights = select_ensemble(model_lib=load_models(nr_classes, load_preds=load_preds), nr_classes=nr_classes, scoring_fn=scoring_fn, seed=0, 
+                                          pipeline=None, use_both_lighting=False, use_pseudo_label=False, augment_mask=True, load_preds=load_preds)
     print(best_voting_weights)
