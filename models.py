@@ -275,3 +275,11 @@ def load_pascal_weighted_models():
     segmentors.append([model3,1.0939830006870825])
 
     return segmentors
+
+
+def load_pascal_preds():
+    segmentors = []
+    for i in range(0, 15):
+        preds = torch.load(f"/dataB3/nadia_dobreva/model{i}_tensor_preds.pt")
+        segmentors.append(preds)
+    return segmentors
