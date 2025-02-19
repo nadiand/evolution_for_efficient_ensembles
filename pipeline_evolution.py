@@ -198,15 +198,10 @@ def optimize_Sequential_ES(
 
     #Initialize and evaluate population
     population = initialize_population(population_size + offspring_size, init_vals, init_sigmas, resize_sigma, param_shape, N_models, bounds, optimise_ensemble, optimise_order)
-#    print('pop initialized')
     population = evaluate_population(population, problem)
     best_candidate, population = select(population, population_size)
 
-#    for candidate in population:
-#        logging.info(f"{candidate.params}, {candidate.factor}, {candidate.fitness}")
-
     for i in range(n_gen):
-#        print(i)
         if N_models>1 and not optimise_ensemble:
             offspring = change_model(population, offspring_size, N_models)
             offspring = evaluate_population(offspring, problem)
@@ -226,27 +221,10 @@ def optimize_Sequential_ES(
         offspring = evaluate_population(offspring, problem)
         best_candidate, population = select(population, population_size, offspring)
 
-#        logging.info(f"gen {i}")
-#        for candidate in population:
-#            logging.info(f"{candidate.params}, {candidate.factor}, {candidate.fitness}")
-
-        # #Optimize a single parameter for one generation
-        # for j in range(init_vals.shape[0]):
-        #     offspring = sample_param(population, j, sigmas, offspring_size, bounds)
-        #     offspring = evaluate_population(offspring, problem)
-        #     best_candidate, population = select(population, population_size, offspring)
-
         logging.info(f"Generation: {i+1}, best fitness: {best_candidate.fitness}, order: {best_candidate.order}, factor: {best_candidate.factor}, model: {best_candidate.model_idx}")
-
-        # Decrease step size
-        # sigmas *= 0.9
-        # resize_sigma *= 0.9
-    # print("Final order", best_candidate.order)
-
-    # for candidate in population:
-    #     print(candidate.params, candidate.factor)
 
     pipeline = ImagePipeline.build_pipeline(
         pipeline_cfg[0], best_candidate.params, best_candidate.factor, augment_mask=augment_mask, order = best_candidate.order, use_both_lighting=use_both_lighting
     )
+    logging.info(f"Best candidate's statistics:\nParams: {best_candidate.params}\nFactor: {best_candidate.factor}\nOrder: {best_candidate.order}")
     return pipeline, best_candidate.model_idx
