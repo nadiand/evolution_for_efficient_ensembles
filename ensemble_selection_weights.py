@@ -23,9 +23,9 @@ def initialize_population(population_size, N_models, threshold, history, g):
     index = 0
     while len(population) < population_size:
         # Completely random weights in initial pop
-        sequence = np.random.uniform(0.0, high=1.0, size=N_models)
+        # sequence = np.random.uniform(0.0, high=1.0, size=N_models)
         # Weights close to 1, i.e. all models get almost equal voting power
-        # sequence = np.random.normal(loc=1.0, scale=0.2, size=N_models)
+        sequence = np.random.normal(loc=1.0, scale=0.2, size=N_models)
         sequence = [s if s>threshold else 0 for s in sequence]
         if not np.all(sequence==history, axis=2).any():
             history[0, index] = sequence
@@ -36,7 +36,7 @@ def initialize_population(population_size, N_models, threshold, history, g):
 def mutate(ensemble, mutation_type, threshold, generation):
     N_models = len(ensemble)
     if mutation_type == "all":
-        sigma = 0.2 #- generation*0.01
+        sigma = 0.2 - generation*0.01
         factor = np.random.uniform(-sigma, sigma, size=N_models)
         ensemble += factor
         ensemble = [w if w>threshold else 0 for w in ensemble]
@@ -78,7 +78,7 @@ def reproduce_uniform(population, history, g, population_size, N_models, thresho
         for i, gene in enumerate(genes_parent1):
             child.append(parents[0].voting_weights[i] if gene else parents[1].voting_weights[i])
 
-        if np.random.uniform() < 0.25:
+        if True: #np.random.uniform() < 0.5:
             child = mutate(child, "all", threshold, g-1)
 
         if not (np.all(child==history, axis=2).any()):
@@ -107,7 +107,7 @@ def reproduce(population, history, g, population_size, N_models, threshold):
 #        ages2 = np.array([p.generation for p in tournament_pool2])
 #        print(fitnesses1, ages2)
 #        winner1 = tournament_pool1[np.argmin(fitnesses1)]
-#        winner2 = tournament_pool2[np.argmin(ages2)]
+#        winner2 = tournament_pool2[np.argmin(fitnesses2)]
 #        parents = [winner1, winner2]
 
         cX_point = np.random.randint(1, N_models-1)
@@ -162,7 +162,7 @@ def select_with_elitism(population, population_size, curr_g):
         elif p.generation < curr_g:
             old.append(p)
     old.sort(key=lambda x: x.fitness)
-    new_population = old[:int(population_size*0.1)] # 20% of the old population, the elites, get to be part of new population
+    new_population = old[:int(population_size*0.2)] # 20% of the old population, the elites, get to be part of new population
     new.sort(key=lambda x: x.fitness)
     i = 0
     while len(new_population) < population_size:
@@ -181,17 +181,17 @@ def select(selection_pool, population_size):
 def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
         use_both_lighting=False, use_pseudo_label=False, augment_mask=True, load_preds=False):
 
-    penalty = 0.05
+    penalty = 0.01
     if load_preds:
         evaluator = EvaluatorPredictions(nr_classes, scoring_fn, penalty, use_pseudo_label)
     else:
         evaluator = EvaluatorSegmentation(nr_classes, scoring_fn, penalty, use_pseudo_label)
     problem = SimpleProblem(model_lib, evaluator, pipeline, augment_mask, use_both_lighting)
 
-    n_gen = 20
-    population_size = 50
+    n_gen = 15
+    population_size = 30
     N_models = len(model_lib)
-    threshold = 0.1
+    threshold = 0.7
 
     np.random.seed(seed=seed+2)
 
@@ -204,17 +204,12 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
     time_per_epoch = 0
     for g in range(n_gen):
         start_epoch = time.time()
-        offspring, history = reproduce(population, history, g+1, population_size, N_models, threshold)
+        offspring, history = reproduce_uniform(population, history, g+1, population_size, N_models, threshold)
         candidate_population = population + offspring
         candidate_population = evaluate_population(candidate_population, problem, 'validation', n_gen-(g+1), load_preds=load_preds)
         best_candidate, population = select_with_elitism(candidate_population, population_size, g+1)
         end_epoch = time.time()
         time_per_epoch += (end_epoch - start_epoch)
-        print("Current population:")
-        for p in population:
-            print(p.generation)
-#            print(p.voting_weights, p.fitness, p.generation)
-        # logging.info(f"Generation: {g+1}, best fitness: {best_candidate.fitness}, ensemble: {best_candidate.voting_weights}")
         print((f"Generation: {g+1}, best fitness: {best_candidate.fitness}, ensemble: {best_candidate.voting_weights}, gen found: {best_candidate.generation}"))
         print("-"*80)
 
@@ -242,11 +237,12 @@ def eval_best_segmentation(best_candidate, segmentors, evaluator):
     confmat = ConfusionMatrix(21)
     norm_weights = [float(w)/sum(best_candidate) for w in best_candidate]
     for images, lbl in evaluator.test_loader:
+        adjusted_images = images*0.6
+        adjusted_images[adjusted_images < -3] = -3
+        adjusted_images[adjusted_images > 3] = 3
+        
         all_outputs = []
         for i, s in enumerate(segmentors):
-            adjusted_images = images*0.6
-            adjusted_images[adjusted_images < -3] = -3
-            adjusted_images[adjusted_images > 3] = 3
             model_pred = s(adjusted_images)
             model_weights = np.empty_like(model_pred)
             model_weights.fill(norm_weights[i])
