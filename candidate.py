@@ -30,5 +30,5 @@ class SimpleProblem:
                 ensemble.append(self.model_lib[i])
                 weights.append(voting_weights[i])
         norm_weights = [float(w)/sum(weights) for w in weights]
-        score = self.evaluator.run(ensemble, norm_weights, eval_type, sampler)
+        score = self.evaluator.run(ensemble, norm_weights, eval_type, sampler, self.pipeline)
         return score
