@@ -13,6 +13,7 @@ from conf_mat import ConfusionMatrix
 from evaluator import Evaluator, EvaluatorSegmentation, EvaluatorPredictions
 from candidate import Candidate, SimpleProblem
 from diversity_metrics import pierson_correlation
+from image_pipeline import ImagePipeline
 from torchmetrics import Accuracy
 from torch.nn import CrossEntropyLoss as CEL
 import torchvision.transforms.functional as F
@@ -177,7 +178,6 @@ def select(selection_pool, population_size):
 
     return selection_pool[0], selection_pool[:population_size]
 
-
 def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
         use_both_lighting=False, use_pseudo_label=False, augment_mask=True, load_preds=False):
 
@@ -198,6 +198,7 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
     history = np.zeros((n_gen+1, population_size, N_models))
     population, history = initialize_population(population_size, N_models, threshold, history, 0)
     population = evaluate_population(population, problem, 'validation', n_gen, load_preds=load_preds)
+    
     print("Init pop:")
     for p in population:
         print(p.voting_weights, p.fitness, p.generation)
@@ -227,19 +228,24 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
             ensemble.append(models[i])
             weights.append(n)
     if nr_classes == 21:
-        eval_best_segmentation(weights, ensemble, evaluator)
+        eval_best_segmentation(weights, ensemble, evaluator, pipeline)
     else:
         eval_best_classification(weights, ensemble, nr_classes, evaluator)
     return best_candidate.voting_weights
 
 
-def eval_best_segmentation(best_candidate, segmentors, evaluator):
+def eval_best_segmentation(best_candidate, segmentors, evaluator, pipeline=None):
     confmat = ConfusionMatrix(21)
     norm_weights = [float(w)/sum(best_candidate) for w in best_candidate]
     for images, lbl in evaluator.test_loader:
         adjusted_images = images*0.6
         adjusted_images[adjusted_images < -3] = -3
         adjusted_images[adjusted_images > 3] = 3
+
+        if pipeline is not None:
+            adjusted_images, lbl = pipeline(adjusted_images, lbl)
+            adjusted_images = torch.Tensor(adjusted_images)
+            lbl = torch.Tensor(lbl)
         
         all_outputs = []
         for i, s in enumerate(segmentors):
@@ -270,7 +276,7 @@ def eval_best_classification(best_candidate, classifiers, nr_classes, evaluator)
     print(f"Best accuracy on testset without penalty: {score}")
 
 
-def load_models(nr_classes, evaluate=False, load_preds=False):
+def load_models(nr_classes, evaluate=False, load_preds=False, pipeline=None):
     if nr_classes == 100:
         models = load_cifar100_models()
     elif nr_classes == 10:
@@ -287,10 +293,10 @@ def load_models(nr_classes, evaluate=False, load_preds=False):
     if nr_classes == 10 or nr_classes == 100:
         return evaluate_classification(nr_classes, models)
     else:
-        return evaluate_segmentation(models)
+        return evaluate_segmentation(models, pipeline)
         
 
-def evaluate_segmentation(segmentors):
+def evaluate_segmentation(segmentors, pipeline=None):
     _, test_dataset = load_PascalVOC()
     for i, s in enumerate(segmentors):
         confmat = ConfusionMatrix(21)
@@ -299,6 +305,12 @@ def evaluate_segmentation(segmentors):
             adjusted_images = images*0.6
             adjusted_images[adjusted_images < -3] = -3
             adjusted_images[adjusted_images > 3] = 3
+
+            if pipeline is not None:
+                adjusted_images, lbl = pipeline(adjusted_images, lbl)
+                adjusted_images = torch.Tensor(adjusted_images)
+                lbl = torch.Tensor(lbl)
+            
             model_pred = s(adjusted_images)
             output = model_pred['out']
             s_preds.append(output.detach().numpy())
@@ -307,7 +319,7 @@ def evaluate_segmentation(segmentors):
         print(f"stats for model {i}:")
         print(confmat)
         np.save(f"/dataB3/nadia_dobreva/model{i}_preds", s_proba_arr.flatten())
-        torch.save(torch.Tensor(np.array(s_proba_arr)), f"/dataB3/nadia_dobreva/model{i}_tensor_preds.pt")
+        torch.save(torch.Tensor(np.array(s_proba_arr)), f"/dataB3/nadia_dobreva/model{i}_tensor_preds_pipelined.pt")
 
     confmat = ConfusionMatrix(21)
     for images, lbl in test_dataset:
@@ -362,10 +374,12 @@ def evaluate_classification(nr_classes, classifiers):
 
 
 if __name__ == "__main__":
-    nr_classes = 100
+    nr_classes = 21
+    load_preds = True
+    pipeline = None #ImagePipeline.build_pipeline(pipeline_cfg=[{'name': 'adjust_brightness', 'args':[{'name':'delta'}]}, {'name': 'adjust_contrast', 'args': [{'name':'alpha'}]}], \
+                     #                       params=np.array([[0.875191832, 1.5]]), resize_factor=1.12294626, augment_mask=True, order=np.array([[0, 1]]))
     scoring_fn = nn.functional.cross_entropy
-    load_preds = False
 
     best_voting_weights = select_ensemble(model_lib=load_models(nr_classes, load_preds=load_preds), nr_classes=nr_classes, scoring_fn=scoring_fn, seed=0, 
-                                          pipeline=None, use_both_lighting=False, use_pseudo_label=False, augment_mask=True, load_preds=load_preds)
+                                          pipeline=pipeline, use_both_lighting=False, use_pseudo_label=False, augment_mask=True, load_preds=load_preds)
     print(best_voting_weights)
