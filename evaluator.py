@@ -86,6 +86,12 @@ class EvaluatorSegmentation:
             adjusted_images = images*0.6
             adjusted_images[adjusted_images < -3] = -3
             adjusted_images[adjusted_images > 3] = 3
+
+            if pipeline is not None:
+                adjusted_images, lbl = pipeline(adjusted_images, lbl)
+                adjusted_images = torch.Tensor(adjusted_images)
+                lbl = torch.Tensor(lbl)
+                
             if len(models) > 1:
                 all_outputs = []
                 for i, m in enumerate(models):
@@ -98,7 +104,8 @@ class EvaluatorSegmentation:
             else:
                 output = models[0](adjusted_images)['out']
 
-            loss = self.score_fn(torch.Tensor(output), torch.Tensor(lbl).to(torch.long).reshape((batch_size,520,520)), ignore_index=255)
+            # loss = self.score_fn(torch.Tensor(output), torch.Tensor(lbl).to(torch.long).reshape((batch_size,520,520)), ignore_index=255)
+            loss = self.score_fn(torch.Tensor(output), torch.Tensor(lbl).to(torch.long).squeeze(dim=1), ignore_index=255)
             scores.append(loss.item())
 
         score = np.mean(scores) + penalty
