@@ -3,7 +3,7 @@ import torch
 from torch.utils.data import DataLoader
 from data import CIFARData, load_PascalVOC
 import torchvision.transforms.functional as F
-
+import transformations
 
 class Evaluator:
     def __init__(
@@ -38,13 +38,14 @@ class Evaluator:
             if len(models) > 1:
                 all_outputs = []
                 for i, m in enumerate(models):
-                    model_pred = m(images).detach().numpy()
+                    adjusted_images = images
+                    model_pred = m(adjusted_images).detach().numpy()
                     model_weights = np.empty_like(model_pred)
                     model_weights.fill(weights[i])
                     all_outputs.append(model_pred * model_weights)
                 output = sum(all_outputs)
             else:
-                output = models[0](images)
+                output = models[0](adjusted_images)
 
             scores.append(self.score_fn(torch.Tensor(output), torch.Tensor(lbl)).detach().numpy())
 
@@ -83,9 +84,7 @@ class EvaluatorSegmentation:
             dataset = self.test_loader
 
         for images, lbl in dataset:
-            adjusted_images = images*0.6
-            adjusted_images[adjusted_images < -3] = -3
-            adjusted_images[adjusted_images > 3] = 3
+            adjusted_images = transformations.adjust_brightness(images, 0.6)
 
             if pipeline is not None:
                 adjusted_images, lbl = pipeline(adjusted_images, lbl)
