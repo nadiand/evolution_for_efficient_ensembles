@@ -12,8 +12,8 @@ import torch
 
 from pipeline_evolution import optimize_Sequential_ES
 from data import load_PascalVOC_pipeline
-from transformations import adjust_brightness, adjust_contrast
-from models import load_pascal_weighted_models
+import transformations
+from models import load_pascal_weighted_models, load_pascal_models
 from conf_mat import ConfusionMatrix
 
 @hydra.main(version_base=None, config_path=".", config_name="tta")
@@ -40,7 +40,7 @@ def run(cfg: DictConfig):
             use_both_lighting=cfg.use_both_lighting,
             use_pseudo_label=False,
 #            optimise_order=True, #cfg.optimise_order,
-            optimise_ensemble=True,
+#            optimise_ensemble=True,
         )
 
         if model_idx == -1:
@@ -66,11 +66,12 @@ def run(cfg: DictConfig):
 
         # for when using an ensemble
         confmat = ConfusionMatrix(21)
-        norm_weights = [float(w)/sum([model_lib[0][1], model_lib[1][1], model_lib[2][1], model_lib[3][1]]) for w in [model_lib[0][1], model_lib[1][1], model_lib[2][1], model_lib[3][1]]] # TODO make this nonhardcoded
+        norm_weights = [1]
+#        norm_weights = [float(w)/sum([model_lib[0][1], model_lib[1][1], model_lib[2][1], model_lib[3][1]]) for w in [model_lib[0][1], model_lib[1][1], model_lib[2][1], model_lib[3][1]]] # TODO make this nonhardcoded
         for images, lbl in test_samples:
             all_outputs = []
             for i, s in enumerate(model_lib):
-                adjusted_images = adjust_brightness(images, 0.6)
+                adjusted_images = transformations.adjust_brightness(images, 0.6)
                 piped_images, piped_lbls = optimized_pipeline(adjusted_images, lbl)
                 model_pred = s[0](torch.Tensor(piped_images))
                 model_pred = model_pred['out'].detach().numpy()
