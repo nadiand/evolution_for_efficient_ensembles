@@ -3,7 +3,7 @@ import torch
 import torchvision.transforms.functional as F
 from torch.utils.data import DataLoader
 import logging
-from transformations import adjust_brightness, adjust_contrast
+import transformations
 
 class Evaluator:
     def __init__(
@@ -19,11 +19,7 @@ class Evaluator:
         counter = 0
         for images, labels in self.dataset:
             counter += 1
-#            print(images.shape)
-            images = adjust_brightness(images, 0.6)
-#            images = torch.Tensor(images)
-#            images = adjust_contrast(images, 0.6)
-#            images = torch.Tensor(images)
+            images = transformations.adjust_brightness(images, 0.6)
             if self.use_pseudo_label:
                 lbl = labels #pseudo_labels
             else:
