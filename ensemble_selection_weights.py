@@ -17,6 +17,7 @@ from image_pipeline import ImagePipeline
 from torchmetrics import Accuracy
 from torch.nn import CrossEntropyLoss as CEL
 import torchvision.transforms.functional as F
+import transformations
 
 
 def initialize_population(population_size, N_models, threshold, history, g):
@@ -238,9 +239,7 @@ def eval_best_segmentation(best_candidate, segmentors, evaluator, pipeline=None)
     confmat = ConfusionMatrix(21)
     norm_weights = [float(w)/sum(best_candidate) for w in best_candidate]
     for images, lbl in evaluator.test_loader:
-        adjusted_images = images*0.6
-        adjusted_images[adjusted_images < -3] = -3
-        adjusted_images[adjusted_images > 3] = 3
+        adjusted_images = transformations.adjust_brightness(images, 0.6)
 
         if pipeline is not None:
             adjusted_images, lbl = pipeline(adjusted_images, lbl)
@@ -302,9 +301,7 @@ def evaluate_segmentation(segmentors, pipeline=None):
         confmat = ConfusionMatrix(21)
         s_preds = []
         for images, lbl in test_dataset:
-            adjusted_images = images*0.6
-            adjusted_images[adjusted_images < -3] = -3
-            adjusted_images[adjusted_images > 3] = 3
+            adjusted_images = transformation.adjust_brightness(images, 0.6)
 
             if pipeline is not None:
                 adjusted_images, lbl = pipeline(adjusted_images, lbl)
@@ -319,15 +316,13 @@ def evaluate_segmentation(segmentors, pipeline=None):
         print(f"stats for model {i}:")
         print(confmat)
         np.save(f"/dataB3/nadia_dobreva/model{i}_preds", s_proba_arr.flatten())
-        torch.save(torch.Tensor(np.array(s_proba_arr)), f"/dataB3/nadia_dobreva/model{i}_tensor_preds_pipelined.pt")
+        torch.save(torch.Tensor(np.array(s_proba_arr)), f"/dataB3/nadia_dobreva/model{i}_tensor_preds_brightness.pt")
 
     confmat = ConfusionMatrix(21)
     for images, lbl in test_dataset:
+        adjusted_images = transformations.adjust_brightness(images, 0.6)
         all_outputs = []
         for i, s in enumerate(segmentors):
-            adjusted_images = images*0.6
-            adjusted_images[adjusted_images < -3] = -3
-            adjusted_images[adjusted_images > 3] = 3
             model_pred = s(adjusted_images)
             all_outputs.append(model_pred['out'].detach().numpy())
         output = np.mean(all_outputs, axis=0)
