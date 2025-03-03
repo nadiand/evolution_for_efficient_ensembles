@@ -239,7 +239,7 @@ def eval_best_segmentation(best_candidate, segmentors, evaluator, pipeline=None)
     confmat = ConfusionMatrix(21)
     norm_weights = [float(w)/sum(best_candidate) for w in best_candidate]
     for images, lbl in evaluator.test_loader:
-        adjusted_images = transformations.adjust_brightness(images, 0.6)
+        adjusted_images = transformations.adjust_brightness(images, 0.5)
 
         if pipeline is not None:
             adjusted_images, lbl = pipeline(adjusted_images, lbl)
@@ -297,11 +297,14 @@ def load_models(nr_classes, evaluate=False, load_preds=False, pipeline=None):
 
 def evaluate_segmentation(segmentors, pipeline=None):
     _, test_dataset = load_PascalVOC()
+    # train, _ = load_PascalVOC()
+    # test_dataset = DataLoader(train, batch_size=1)
+    
     for i, s in enumerate(segmentors):
         confmat = ConfusionMatrix(21)
         s_preds = []
         for images, lbl in test_dataset:
-            adjusted_images = transformation.adjust_brightness(images, 0.6)
+            adjusted_images = transformations.adjust_brightness(images, 0.5)
 
             if pipeline is not None:
                 adjusted_images, lbl = pipeline(adjusted_images, lbl)
@@ -315,12 +318,11 @@ def evaluate_segmentation(segmentors, pipeline=None):
         s_proba_arr = np.array(s_preds)
         print(f"stats for model {i}:")
         print(confmat)
-        np.save(f"/dataB3/nadia_dobreva/model{i}_preds", s_proba_arr.flatten())
-        torch.save(torch.Tensor(np.array(s_proba_arr)), f"/dataB3/nadia_dobreva/model{i}_tensor_preds_brightness.pt")
+        # torch.save(torch.Tensor(np.array(s_proba_arr)), f"/dataB3/nadia_dobreva/model{i}_tensor_preds_brightness.pt")
 
     confmat = ConfusionMatrix(21)
     for images, lbl in test_dataset:
-        adjusted_images = transformations.adjust_brightness(images, 0.6)
+        adjusted_images = transformations.adjust_brightness(images, 0.5)
         all_outputs = []
         for i, s in enumerate(segmentors):
             model_pred = s(adjusted_images)
