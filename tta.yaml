@@ -42,20 +42,51 @@ ap_thresholds: {"ball": 0.6, "wedge": 0.5}
 n_seeds: 5
 ##
 
+resize_cfg:
+    optimize: True
+    init: 1.0
+    sigma: 0.1
+    min: 0.75
+    max: 1.25
+
 ## Pipeline augmentation parameters
 # Augmentations to optimize for both pipelines, by default
 # resizing the input image is always optimized before they are passed
 # to the pipelines.
 augs:
+  - name: adjust_gamma
+    args:
+    - name: gamma
+      init: 1.0
+      init_sigma: 0.1
+      sigma: 0.1
+      min: 0.5
+      max: 1.5
   - name: adjust_brightness
     args:
     - name: delta
-      init: 1.0
-      init_sigma: 0.1 #5.0
-      sigma: 0.1 #5.0
-      min: -3 #-100.0
-      max: 3 #100.0
+      init: 0.0
+      init_sigma: 0.1
+      sigma: 0.1
+      min: -1
+      max: 1
+  # - name: solarize
+  #   args:
+  #   - name: threshold
+  #     init: 150.0
+  #     init_sigma: 40.0
+  #     sigma: 10.0
+  #     min: 0.0
+  #     max: 255.0
   - name: adjust_contrast
+    args:
+    - name: alpha
+      init: 1.0
+      init_sigma: 0.1
+      sigma: 0.1
+      min: 0.5
+      max: 1.5
+  - name: apply_sharpen
     args:
     - name: alpha
       init: 1.0
