@@ -4,7 +4,13 @@ from scipy.signal import convolve2d
 
 import torch
 import torchvision.transforms.functional as F
+import torch.nn.functional as FF
 from torchvision.transforms import InterpolationMode
+
+LBOUNDS = torch.tensor([[[-2.1179039301310043]], [[-2.0357142857142856]], [[-1.8044444444444445]]])
+UBOUNDS = torch.tensor([[[2.2489082969432315]], [[2.428571428571429]], [[2.6399999999999997]]])
+MEAN=torch.tensor([[[0.485]], [[0.456]], [[0.406]]])
+STD=torch.tensor([[[0.229]], [[0.224]], [[0.225]]])
 
 def apply_to_mask(flag):
     def decorator(func):
@@ -15,32 +21,28 @@ def apply_to_mask(flag):
 
 @apply_to_mask(False)
 def adjust_contrast(batch_imgs, alpha=1.0, is_mask=False):
-    r, g, b = batch_imgs[:,0], batch_imgs[:,1], batch_imgs[:,2]
-    l_img = (0.2989 * r + 0.587 * g + 0.114 * b)
-    mean = torch.mean(l_img, dim=(1,2), keepdim=True)
-    mean = np.expand_dims(mean, axis=1)
-    result = alpha*batch_imgs + (1.0-alpha)*mean
-    result[result > 3] = 3
-    result[result < -3] = -3
+    adjusted_imgs = []
+    for img in batch_imgs:
+        r, g, b = img.unbind(dim=0)
+        l_img = (0.2989 * r + 0.587 * g + 0.114 * b).to(img.dtype)
+        l_img = l_img.unsqueeze(dim=-3)
+        mean = torch.mean(l_img, dim=(-3, -2, -1), keepdim=True)
+        result = alpha*img + (1.0-alpha)*mean
+        result = torch.clamp(result, LBOUNDS, UBOUNDS)
+        adjusted_imgs.append(result)
 
-    if len(result.shape) < 4:
-        result = np.expand_dims(result, axis=-1)
-    return torch.Tensor(result)
+    return torch.Tensor(np.array(adjusted_imgs))
 
 @apply_to_mask(False)  # Brightness adjustment typically doesn't apply to masks
 def adjust_brightness(batch_imgs, delta=0, is_mask=False):
     adjusted_imgs = []
     for img in batch_imgs:
         # Ensure values wrap around
-        adjusted_img = img + delta
-        adjusted_img[adjusted_img > 3] = 3
-        adjusted_img[adjusted_img < -3] = -3
+        adjusted_img = img + delta*torch.ones_like(img)
+        adjusted_img = torch.clamp(adjusted_img, LBOUNDS, UBOUNDS)
         adjusted_imgs.append(adjusted_img)
 
-    result = np.array(adjusted_imgs)
-    if len(result.shape) < 4:
-        result = np.expand_dims(result, axis=-1)
-    return torch.Tensor(result)
+    return torch.Tensor(np.array(adjusted_imgs))
 
 @apply_to_mask(True)  # Change to False if you don't want this applied to masks
 def resize_by_factor(batch_imgs, factor=1.0, is_mask=False):
@@ -53,33 +55,41 @@ def resize_by_factor(batch_imgs, factor=1.0, is_mask=False):
             resized_img = F.resize(torch.Tensor(img), new_size)
         resized_imgs.append(resized_img)
 
-    result = np.array(resized_imgs)
-    if len(result.shape) < 4:
-        result = np.expand_dims(result, axis=-1)
-    return torch.Tensor(result)
+    return torch.Tensor(np.array(resized_imgs))
 
 @apply_to_mask(False)
-def adjust_gamma(batch_imgs, gamma=1.0, is_mask=False):
-    batch_imgs = batch_imgs.numpy()
+def adjust_gamma(batch_imgs, gamma=1.0, is_mask=False, min=0, max=1):
     inv_gamma = 1.0 / gamma
-    batch_imgs = (10*(batch_imgs + 3)).astype(np.uint8)
-    table = ((np.arange(0, 6, 0.1) / 6) ** inv_gamma * 6 - 3)
-    result = np.take(table, batch_imgs, axis=-1)
-    return torch.Tensor(result)
 
-def apply_sharpen_to_channels(img, kernel):
-    return np.array([convolve2d(channel, kernel, mode="same") for channel in img])
+    adjusted_imgs = []
+    for img in batch_imgs:
+        adjusted_img = (STD*img + MEAN) ** inv_gamma
+        adjusted_img = torch.clamp(adjusted_img, 0, 1)
+        adjusted_imgs.append((adjusted_img - MEAN)/STD)
+
+    return torch.Tensor(np.array(adjusted_imgs))
+
+# def apply_sharpen_to_channels(img, kernel):
+#     return np.array([convolve2d(channel, kernel, mode="same") for channel in img])
 
 @apply_to_mask(False)
 def apply_sharpen(batch_imgs, alpha=1.0, is_mask=False):
     # Base sharpening kernel
     a, b = -1.0, 9.0
-    kernel = np.array([[a, a, a], [a, b, a], [a, a, a]])
-    sharpened_imgs = [img * alpha + (1-alpha) * apply_sharpen_to_channels(img, kernel) for img in batch_imgs]
+    kernel = torch.tensor([[a, a, a], [a, b, a], [a, a, a]]).reshape(1, 3, 3).repeat(3, 1, 1)/9
 
-    result = np.array(sharpened_imgs)
+    sharpened_imgs = []
 
-    if len(result.shape) < 4:
-        result = np.expand_dims(result, axis=-1)
+    for img in batch_imgs:
+        convolved_img = FF.conv2d(torch.unsqueeze((STD*img + MEAN), dim=0), torch.unsqueeze(kernel, dim=0), padding=1)
+        sharpened_img = (STD*img + MEAN) * alpha + (1-alpha) * convolved_img
+        sharpened_img = torch.squeeze((sharpened_img - MEAN)/STD, dim=0)
+        sharpened_img = torch.clamp(sharpened_img, LBOUNDS, UBOUNDS)
+        sharpened_imgs.append(sharpened_img)
 
-    return torch.Tensor(result)
+    return torch.Tensor(np.array(sharpened_imgs))
+
+
+def apply_blut(batch_imgs):
+    new_imgs = F.gaussian_blur(batch_imgs, kernel_size=(5,9), sigma=(5,10))
+    return new_imgs
