@@ -84,7 +84,7 @@ class EvaluatorSegmentation:
             dataset = self.test_loader
 
         for images, lbl in dataset:
-            adjusted_images = transformations.adjust_brightness(images, 0.6)
+            adjusted_images = transformations.adjust_brightness(images, 0.5)
 
             if pipeline is not None:
                 adjusted_images, lbl = pipeline(adjusted_images, lbl)
