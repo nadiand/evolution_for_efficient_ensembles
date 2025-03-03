@@ -19,7 +19,7 @@ class Evaluator:
         counter = 0
         for images, labels in self.dataset:
             counter += 1
-            images = transformations.adjust_brightness(images, 0.6)
+            images = transformations.adjust_brightness(images, 0.5)
             if self.use_pseudo_label:
                 lbl = labels #pseudo_labels
             else:
