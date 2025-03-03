@@ -32,6 +32,7 @@ def run(cfg: DictConfig):
         # Optimization method
         optimized_pipeline, model_idx = optimize_Sequential_ES(
             [cfg.augs, cfg.augs] if cfg.use_both_lighting else [cfg.augs],
+            cfg.resize_cfg,
             model_lib,
             train_samples,
             scoring_fn,
@@ -71,7 +72,7 @@ def run(cfg: DictConfig):
         for images, lbl in test_samples:
             all_outputs = []
             for i, s in enumerate(model_lib):
-                adjusted_images = transformations.adjust_brightness(images, 0.6)
+                adjusted_images = transformations.adjust_brightness(images, 0.5)
                 piped_images, piped_lbls = optimized_pipeline(adjusted_images, lbl)
                 model_pred = s[0](torch.Tensor(piped_images))
                 model_pred = model_pred['out'].detach().numpy()
