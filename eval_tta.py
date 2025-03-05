@@ -10,7 +10,10 @@ from torch import nn
 import torchvision.transforms.functional as F
 import torch
 
-from pipeline_evolution import optimize_Sequential_ES
+from pipeline_evaluator_individual import maybe_rescale_prediction
+from pipelineGA_individual import optimize_Sequential_ES as individual_Seq_ES
+from pipelineGA_general import optimize_Sequential_ES as general_Seq_ES
+from new_pipeline_evolution import optimize_Sequential_ES
 from data import load_PascalVOC_pipeline
 import transformations
 from models import load_pascal_weighted_models, load_pascal_models
@@ -26,11 +29,20 @@ def run(cfg: DictConfig):
 
     # Optimize function
     scoring_fn = nn.functional.cross_entropy
+    pipeline_GA_type = 'vanilla'
+    if pipeline_GA_type == 'vanilla':
+        optimiser = optimize_Sequential_ES
+    elif pipeline_GA_type == 'general':
+        optimiser = general_Seq_ES
+    elif pipeline_GA_type == 'individual':
+        optimiser = individual_Seq_ES
+    else:
+        optimiser = None
 
     for i in range(cfg.n_seeds):
 
         # Optimization method
-        optimized_pipeline, model_idx = optimize_Sequential_ES(
+        optimized_pipeline, model_idx = optimiser(
             [cfg.augs, cfg.augs] if cfg.use_both_lighting else [cfg.augs],
             cfg.resize_cfg,
             model_lib,
@@ -67,21 +79,25 @@ def run(cfg: DictConfig):
 
         # for when using an ensemble
         confmat = ConfusionMatrix(21)
-        norm_weights = [1]
-#        norm_weights = [float(w)/sum([model_lib[0][1], model_lib[1][1], model_lib[2][1], model_lib[3][1]]) for w in [model_lib[0][1], model_lib[1][1], model_lib[2][1], model_lib[3][1]]] # TODO make this nonhardcoded
+        total_w = sum([tup[1] for tup in model_lib])
+        norm_weights = [tup[1]/total_w for tup in model_lib]
         for images, lbl in test_samples:
             all_outputs = []
             for i, s in enumerate(model_lib):
                 adjusted_images = transformations.adjust_brightness(images, 0.5)
-                piped_images, piped_lbls = optimized_pipeline(adjusted_images, lbl)
+                if pipeline_GA_type == 'individual':
+                    piped_images, piped_lbls = optimized_pipeline[i](adjusted_images, lbl)
+                else:
+                    piped_images, piped_lbls = optimized_pipeline(adjusted_images, lbl)
                 model_pred = s[0](torch.Tensor(piped_images))
                 model_pred = model_pred['out'].detach().numpy()
                 model_weights = np.empty_like(model_pred)
                 model_weights.fill(norm_weights[i])
-                all_outputs.append(model_pred * model_weights)
+                weighted_pred = model_pred * model_weights
+                all_outputs.append(maybe_rescale_prediction(weighted_pred, lbl.shape))
             output = sum(all_outputs)
             output, piped_lbls = torch.Tensor(output), torch.Tensor(piped_lbls)
-            confmat.update(piped_lbls.flatten(), output.argmax(1).flatten())
+            confmat.update(lbl.flatten(), output.argmax(1).flatten())
         print("Best performance on testset without penalty:")
         print(confmat)
 
