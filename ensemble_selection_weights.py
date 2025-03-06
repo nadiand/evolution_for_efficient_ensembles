@@ -194,7 +194,8 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
     N_models = len(model_lib)
     threshold = 0.7
 
-    np.random.seed(seed=seed+2)
+    np.random.seed(seed=seed)
+    torch.manual_seed(seed)
 
     history = np.zeros((n_gen+1, population_size, N_models))
     population, history = initialize_population(population_size, N_models, threshold, history, 0)
@@ -204,12 +205,14 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
     for p in population:
         print(p.voting_weights, p.fitness, p.generation)
     time_per_epoch = 0
+    fitness_evolution = []
     for g in range(n_gen):
         start_epoch = time.time()
         offspring, history = reproduce_uniform(population, history, g+1, population_size, N_models, threshold)
         candidate_population = population + offspring
         candidate_population = evaluate_population(candidate_population, problem, 'validation', n_gen-(g+1), load_preds=load_preds)
         best_candidate, population = select_with_elitism(candidate_population, population_size, g+1)
+        fitness_evolution.append(best_candidate.fitness)
         end_epoch = time.time()
         time_per_epoch += (end_epoch - start_epoch)
         print((f"Generation: {g+1}, best fitness: {best_candidate.fitness}, ensemble: {best_candidate.voting_weights}, gen found: {best_candidate.generation}"))
@@ -219,6 +222,8 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
     print(f"Time it took to do one epoch: {time_per_epoch/n_gen}")
 
     best_candidate = evaluate_population([best_candidate], problem, 'test', n_gen, load_preds=load_preds)[0]
+    fitness_evolution.append(best_candidate.fitness)
+    print(f"Fitness evolution: {fitness_evolution}")
     fitness_no_penalty = best_candidate.fitness - penalty*np.count_nonzero(best_candidate.voting_weights)
     print(f"Best fitness on testset without penalty: {fitness_no_penalty}")
 
