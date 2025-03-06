@@ -93,7 +93,7 @@ class CIFARData(pl.LightningDataModule):
             print("invalid dataset requested")
             exit(0)
             
-        subset_size = 50
+        subset_size = 30
         rand_start = 7037 #np.random.randint(0,dataset.__len__())
         small_dataset = Subset(dataset, range(rand_start, rand_start + subset_size))
 
@@ -130,15 +130,15 @@ def load_PascalVOC():
     target_transform = T.Compose([v2.Resize(size=(520,520)), v2.PILToTensor(),])
     dataset = VOCSegmentation(root="/home/nadia_dobreva/PyTorch_CIFAR10/data/pascal/", image_set='val', transform=transform, target_transform=target_transform)
 
-    subset_size = 50
+    subset_size = 30
     rand_start = 120 #np.random.randint(0,dataset.__len__())
     small_dataset = Subset(dataset, range(rand_start, rand_start + subset_size))
 
     rest_of_dataset = Subset(dataset, list(chain(range(0, rand_start), range(rand_start+subset_size+1, len(dataset)))))
     test_dataloader = DataLoader(
         rest_of_dataset,
-        batch_size=128,
-        num_workers=4,
+        batch_size=1,
+        num_workers=2,
         drop_last=True,
         pin_memory=True,
     )
