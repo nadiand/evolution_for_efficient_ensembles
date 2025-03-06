@@ -142,17 +142,11 @@ def reproduce(population, history, g, population_size, N_models, threshold):
 
 
 def evaluate_population(population, problem, eval_type, gen, load_preds=False):
-    if gen == 0:
-        nr_samples = 50
-    else:
-        nr_samples = 30
-    indices = np.random.choice(range(0, 50), size=nr_samples, replace=False)
-    sampler = SubsetRandomSampler(indices=indices)
     for candidate in population:
         if load_preds:
-            fitness = problem(candidate(), eval_type, indices)
+            fitness = problem(candidate(), eval_type)
         else:
-            fitness = problem(candidate(), eval_type, sampler)
+            fitness = problem(candidate(), eval_type)
         candidate.set_fitness(fitness)
     return population
 
