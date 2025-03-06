@@ -23,7 +23,7 @@ class SimpleProblem:
         self.augment_mask = augment_mask
         self.use_both_lighting = use_both_lighting
 
-    def __call__(self, voting_weights, eval_type, sampler):
+    def __call__(self, voting_weights, eval_type, sampler=None):
         ensemble, weights = [], []
         for i, n in enumerate(voting_weights):
             if n:
