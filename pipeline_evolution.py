@@ -20,7 +20,7 @@ class Candidate:
     def set_fitness(self, fitness):
         self.fitness = fitness
 
-def sample_params(population, population_size, sigmas, resize_cfg, bounds, N_models, change_model_p, optimize_order):
+def sample_params(population, population_size, sigmas, resize_cfg, bounds, N_models, change_model_p, optimize_order, optimize_ensemble):
     new_population = []
     fitnesses = np.array([-p.fitness for p in population])
     rng = np.random.default_rng()
@@ -31,7 +31,9 @@ def sample_params(population, population_size, sigmas, resize_cfg, bounds, N_mod
         for idx in range(new_parameters.shape[0]):
             new_parameters[idx] = np.clip(new_parameters[idx] + np.random.normal(loc=0, scale=sigmas[idx]), bounds[0][idx], bounds[1][idx])
         if N_models > 1:
-            if np.random.rand() < change_model_p:
+            if optimize_ensemble:
+                model_idx = -1
+            elif np.random.rand() < change_model_p:
                 model_idx = np.random.randint(0, N_models)
             else:
                 model_idx = parent.model_idx
@@ -184,7 +186,10 @@ def optimize_Sequential_ES(
     population = initialize_population(population_size + offspring_size, init_vals, sigmas, resize_cfg,
                                        param_shape, N_models, bounds, optimise_ensemble, optimise_order)
 
-    population.append(Candidate(init_vals, np.tile(np.arange(param_shape[1]), (param_shape[0], 1)), 1.0, 0))
+    if optimise_ensemble:
+        population.append(Candidate(init_vals, np.tile(np.arange(param_shape[1]), (param_shape[0], 1)), 1.0, -1))
+    else:
+        population.append(Candidate(init_vals, np.tile(np.arange(param_shape[1]), (param_shape[0], 1)), 1.0, 0))
 
     population = evaluate_population(population, problem)
     print(population[-1].fitness, np.mean(evaluator.run([model_lib[0]])))
@@ -193,7 +198,7 @@ def optimize_Sequential_ES(
     logging.info(f"Generation: 0, best fitness: {best_candidate.fitness}, model: {best_candidate.model_idx}")
 
     for i in range(n_gen):
-        offspring = sample_params(population, offspring_size, sigmas, resize_cfg, bounds, N_models, change_model_p, optimise_order)
+        offspring = sample_params(population, offspring_size, sigmas, resize_cfg, bounds, N_models, change_model_p, optimise_order, optimise_ensemble)
         offspring = evaluate_population(offspring, problem)
         best_candidate, population = select(population, population_size, offspring)
 
