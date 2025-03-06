@@ -36,9 +36,10 @@ class Evaluator:
                 all_outputs = []
                 for i, m in enumerate(models):
                     if pipelines[i] is not None:
-                        images, lbl_r = pipelines[i](images, lbl)
-
-                    model_pred = m[0](images)['out'].detach().numpy()
+                        images_r, lbl_r = pipelines[i](images, lbl)
+                        model_pred = m[0](images_r)['out'].detach().numpy()
+                    else:
+                        model_pred = m[0](images)['out'].detach().numpy()
                     model_weights = np.empty_like(model_pred)
                     model_weights.fill(m[1])
                     weighted_pred = model_pred * model_weights
