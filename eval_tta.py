@@ -9,23 +9,42 @@ from omegaconf import DictConfig
 from torch import nn
 import torchvision.transforms.functional as F
 import torch
+from torch.utils.data import DataLoader
+from torchmetrics import Accuracy
 
 from pipeline_evaluator_individual import maybe_rescale_prediction
 from pipelineGA_individual import optimize_Sequential_ES as individual_Seq_ES
 from pipelineGA_general import optimize_Sequential_ES as general_Seq_ES
 from new_pipeline_evolution import optimize_Sequential_ES
-from data import load_PascalVOC_pipeline
+from data import load_PascalVOC_pipeline, CIFARData
 import transformations
-from models import load_pascal_weighted_models, load_pascal_models
+from models import load_pascal_weighted_models, load_pascal_models, load_cifar100_models, load_best_cifar100
 from conf_mat import ConfusionMatrix
 
 @hydra.main(version_base=None, config_path=".", config_name="tta")
 def run(cfg: DictConfig):
+    task = 'CIFAR'
     # Load a model
-    model_lib = load_pascal_weighted_models()
+    if task == 'CIFAR':
+        model_lib = load_best_cifar100()
+        model_lib = [[m,1] for m in model_lib]
+    else:
+        model_lib = load_pascal_weighted_models() #load_pascal_models() #load_pascal_weighted_models()
+        model_lib = [[m,1] for m in model_lib]
     logging.info(f"Number of models loaded: {len(model_lib)}")
 
-    train_samples, test_samples = load_PascalVOC_pipeline()
+    if task == 'CIFAR':
+        train_samples, test_samples = CIFARData(100).test_dataloader()
+        train_samples = DataLoader(
+                train_samples,
+                batch_size=30,
+                num_workers=4,
+                drop_last=True,
+                pin_memory=True,
+                shuffle=False,
+            )
+    else:
+         train_samples, test_samples = load_PascalVOC_pipeline()
 
     # Optimize function
     scoring_fn = nn.functional.cross_entropy
@@ -78,7 +97,11 @@ def run(cfg: DictConfig):
 #        print(confmat)
 
         # for when using an ensemble
-        confmat = ConfusionMatrix(21)
+        if task == 'CIFAR':
+            scores = []
+            accuracy = Accuracy(task='multiclass', num_classes=100)
+        else:
+            confmat = ConfusionMatrix(21)
         total_w = sum([tup[1] for tup in model_lib])
         norm_weights = [tup[1]/total_w for tup in model_lib]
         for images, lbl in test_samples:
@@ -90,16 +113,25 @@ def run(cfg: DictConfig):
                 else:
                     piped_images, piped_lbls = optimized_pipeline(adjusted_images, lbl)
                 model_pred = s[0](torch.Tensor(piped_images))
-                model_pred = model_pred['out'].detach().numpy()
+                if task == 'CIFAR':
+                    model_pred = model_pred.detach().numpy()
+                else:
+                    model_pred = model_pred['out'].detach().numpy()
                 model_weights = np.empty_like(model_pred)
                 model_weights.fill(norm_weights[i])
                 weighted_pred = model_pred * model_weights
                 all_outputs.append(maybe_rescale_prediction(weighted_pred, lbl.shape))
             output = sum(all_outputs)
             output, piped_lbls = torch.Tensor(output), torch.Tensor(piped_lbls)
-            confmat.update(lbl.flatten(), output.argmax(1).flatten())
+            if task == 'CIFAR':
+                scores.append(accuracy(target=torch.Tensor(lbl), preds=torch.Tensor(output)))
+            else:
+                confmat.update(lbl.flatten(), output.argmax(1).flatten())
         print("Best performance on testset without penalty:")
-        print(confmat)
+        if task == 'CIFAR':
+            print(np.mean(scores))
+        else:
+            print(confmat)
 
 if __name__ == "__main__":
     run()
