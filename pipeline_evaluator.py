@@ -25,9 +25,7 @@ class Evaluator:
             else:
                 lbl = labels
             if pipeline is not None:
-                images, lbl = pipeline(images, lbl)
-                images = torch.Tensor(images)
-                lbl = torch.Tensor(lbl)
+                images, lbl_r = pipeline(images, lbl)
 
             if len(models) > 1:
                 all_outputs = []
