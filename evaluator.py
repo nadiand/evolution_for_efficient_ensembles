@@ -13,7 +13,7 @@ class Evaluator:
         self.score_fn = scoring_fn
         self.penalty = penalty
 
-    def run(self, models, weights, eval_type, sampler, pipeline=None):
+    def run(self, models, weights, eval_type, sampler=None, pipeline=None):
         penalty = len(weights)*self.penalty
         scores = []
 
@@ -25,8 +25,6 @@ class Evaluator:
                 num_workers=4,
                 drop_last=True,
                 pin_memory=True,
-                sampler=sampler,
-                shuffle=False,
             )
             dataset = val_dataloader
         else:
@@ -62,7 +60,7 @@ class EvaluatorSegmentation:
         self.penalty = penalty
         self.num_classes = nr_classes
 
-    def run(self, models, weights, eval_type, sampler, pipeline=None):
+    def run(self, models, weights, eval_type, sampler=None, pipeline=None):
         penalty = len(weights)*self.penalty
         scores = []
 
@@ -74,9 +72,7 @@ class EvaluatorSegmentation:
                 batch_size=batch_size,
                 num_workers=4,
                 drop_last=True,
-                pin_memory=True,
-                sampler=sampler,
-                shuffle=False,
+                pin_memory=True
             )
             dataset = val_dataloader
         else:
