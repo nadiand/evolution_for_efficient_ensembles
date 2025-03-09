@@ -32,7 +32,7 @@ class Evaluator:
 
         for images, lbl in dataset:
             if pipeline is not None:
-                images, lbl = pipeline(images, lbl)
+                images, lbl_r = pipeline(images, lbl)
             if len(models) > 1:
                 all_outputs = []
                 for i, m in enumerate(models):
@@ -83,7 +83,7 @@ class EvaluatorSegmentation:
             adjusted_images = transformations.adjust_brightness(images, 0.5)
 
             if pipeline is not None:
-                adjusted_images, lbl = pipeline(adjusted_images, lbl)
+                adjusted_images, lbl_r = pipeline(adjusted_images, lbl)
                 adjusted_images = torch.Tensor(adjusted_images)
                 lbl = torch.Tensor(lbl)
                 
@@ -136,11 +136,7 @@ class EvaluatorPredictions:
             batch_size = 1
             dataset = self.test_loader
 
-        counter = -1
         for images, lbl in dataset:
-            counter += 1
-            if not counter in indices:
-                continue
             if len(models) > 1:
                 all_outputs = []
                 for i, m in enumerate(models):
