@@ -214,12 +214,7 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
 
     print(f"Total time it took to do {n_gen} epochs: {time_per_epoch}")
     print(f"Time it took to do one epoch: {time_per_epoch/n_gen}")
-
-    best_candidate = evaluate_population([best_candidate], problem, 'test', n_gen, load_preds=load_preds)[0]
-    fitness_evolution.append(best_candidate.fitness)
     print(f"Fitness evolution: {fitness_evolution}")
-    fitness_no_penalty = best_candidate.fitness - penalty*np.count_nonzero(best_candidate.voting_weights)
-    print(f"Best fitness on testset without penalty: {fitness_no_penalty}")
 
     models = load_pascal_models()
     ensemble, weights = [], []
@@ -241,7 +236,7 @@ def eval_best_segmentation(best_candidate, segmentors, evaluator, pipeline=None)
         adjusted_images = transformations.adjust_brightness(images, 0.5)
 
         if pipeline is not None:
-            adjusted_images, lbl = pipeline(adjusted_images, lbl)
+            adjusted_images, lbl_r = pipeline(adjusted_images, lbl)
             adjusted_images = torch.Tensor(adjusted_images)
             lbl = torch.Tensor(lbl)
         
@@ -306,7 +301,7 @@ def evaluate_segmentation(segmentors, pipeline=None):
             adjusted_images = transformations.adjust_brightness(images, 0.5)
 
             if pipeline is not None:
-                adjusted_images, lbl = pipeline(adjusted_images, lbl)
+                adjusted_images, lbl_r = pipeline(adjusted_images, lbl)
                 adjusted_images = torch.Tensor(adjusted_images)
                 lbl = torch.Tensor(lbl)
             
