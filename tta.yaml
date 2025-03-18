@@ -54,14 +54,6 @@ resize_cfg:
 # resizing the input image is always optimized before they are passed
 # to the pipelines.
 augs:
-  - name: adjust_gamma
-    args:
-    - name: gamma
-      init: 1.0
-      init_sigma: 0.1
-      sigma: 0.1
-      min: 0.5
-      max: 1.5
   - name: adjust_brightness
     args:
     - name: delta
@@ -70,15 +62,15 @@ augs:
       sigma: 0.1
       min: -1
       max: 1
-  # - name: solarize
-  #   args:
-  #   - name: threshold
-  #     init: 150.0
-  #     init_sigma: 40.0
-  #     sigma: 10.0
-  #     min: 0.0
-  #     max: 255.0
-  - name: adjust_contrast
+  - name: adjust_gamma
+    args:
+    - name: gamma
+      init: 1.0
+      init_sigma: 0.1
+      sigma: 0.1
+      min: 0.5
+      max: 1.5
+  - name: apply_sharpen
     args:
     - name: alpha
       init: 1.0
@@ -86,7 +78,7 @@ augs:
       sigma: 0.1
       min: 0.5
       max: 1.5
-  - name: apply_sharpen
+  - name: adjust_contrast
     args:
     - name: alpha
       init: 1.0
