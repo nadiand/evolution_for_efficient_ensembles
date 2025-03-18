@@ -4,6 +4,7 @@ import torchvision.transforms.functional as F
 from torch.utils.data import DataLoader
 import logging
 import transformations
+from pipeline_evaluator_individual import maybe_rescale_prediction
 
 class Evaluator:
     def __init__(
@@ -36,9 +37,10 @@ class Evaluator:
                     all_outputs.append(model_pred * model_weights)
                 output = sum(all_outputs)
             else:
-                output = models[0][0](images)['out']
+                output = models[0][0](images).detach().numpy() #['out']
 
             batch_size = 30
+            output = maybe_rescale_prediction(output, lbl.shape)
             loss = self.score_fn(torch.Tensor(output), torch.Tensor(lbl).to(torch.long).squeeze(), ignore_index=255)
             scores.append(loss.item())
 
