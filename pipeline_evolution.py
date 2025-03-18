@@ -2,6 +2,8 @@ import numpy as np
 import logging
 from pipeline_evaluator import Evaluator
 from image_pipeline import ImagePipeline
+import torch
+import time
 
 
 # Candidate class that contains the parameters and order
@@ -180,6 +182,9 @@ def optimize_Sequential_ES(
     population_size = 15 #cfg.optimization["pop_size"]
     offspring_size = 15 #cfg.optimization["offspring_size"]
 
+    torch.manual_seed(seed)
+    np.random.seed(seed=seed)
+
     problem = SimpleProblem(model_lib, evaluator, pipeline_cfg, param_shape, augment_mask, use_both_lighting)
 
     # Initialize and evaluate population
@@ -197,7 +202,10 @@ def optimize_Sequential_ES(
 
     logging.info(f"Generation: 0, best fitness: {best_candidate.fitness}, model: {best_candidate.model_idx}")
 
+    fitness_evolution = []
+    time_per_epoch = 0
     for i in range(n_gen):
+        start_epoch = time.time()
         offspring = sample_params(population, offspring_size, sigmas, resize_cfg, bounds, N_models, change_model_p, optimise_order, optimise_ensemble)
         offspring = evaluate_population(offspring, problem)
         best_candidate, population = select(population, population_size, offspring)
@@ -205,11 +213,19 @@ def optimize_Sequential_ES(
         logging.info(
             f"Generation: {i+1}, best fitness: {best_candidate.fitness}, model: {best_candidate.model_idx}"
         )
+        fitness_evolution.append(best_candidate.fitness)
 
         # Decrease step size
         sigmas *= 0.9
         change_model_p *= 0.9
 
+        end_epoch = time.time()
+        time_per_epoch += (end_epoch - start_epoch)
+
+    print(f"Total time it took to do {n_gen} epochs: {time_per_epoch}")
+    print(f"Time it took to do one epoch: {time_per_epoch/n_gen}")
+    print(f"Fitness evolution: {fitness_evolution}")
+    
     pipeline = ImagePipeline.build_pipeline(
         pipeline_cfg[0], best_candidate.params, best_candidate.factor, augment_mask=augment_mask,
         order=best_candidate.order, use_both_lighting=use_both_lighting
