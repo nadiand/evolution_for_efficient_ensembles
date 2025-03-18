@@ -136,7 +136,9 @@ class EvaluatorPredictions:
             batch_size = 1
             dataset = self.test_loader
 
+        counter = -1
         for images, lbl in dataset:
+            counter += 1
             if len(models) > 1:
                 all_outputs = []
                 for i, m in enumerate(models):
