@@ -18,7 +18,7 @@ from pipelineGA_general import optimize_Sequential_ES as general_Seq_ES
 from new_pipeline_evolution import optimize_Sequential_ES
 from data import load_PascalVOC_pipeline, CIFARData
 import transformations
-from models import load_pascal_weighted_models, load_pascal_models, load_cifar100_models, load_best_cifar100
+from models import load_pascal_weighted_models, load_pascal_models, load_cifar100_models, load_best_cifar100, load_best_pascal
 from conf_mat import ConfusionMatrix
 
 @hydra.main(version_base=None, config_path=".", config_name="tta")
@@ -29,7 +29,7 @@ def run(cfg: DictConfig):
         model_lib = load_best_cifar100()
         model_lib = [[m,1] for m in model_lib]
     else:
-        model_lib = load_pascal_weighted_models() #load_pascal_models() #load_pascal_weighted_models()
+        model_lib = load_best_pascal()
         model_lib = [[m,1] for m in model_lib]
     logging.info(f"Number of models loaded: {len(model_lib)}")
 
@@ -37,7 +37,7 @@ def run(cfg: DictConfig):
         train_samples, test_samples = CIFARData(100).test_dataloader()
         train_samples = DataLoader(
                 train_samples,
-                batch_size=30,
+                batch_size=150,
                 num_workers=4,
                 drop_last=True,
                 pin_memory=True,
