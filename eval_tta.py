@@ -18,7 +18,7 @@ from pipelineGA_general import optimize_Sequential_ES as general_Seq_ES
 from new_pipeline_evolution import optimize_Sequential_ES
 from data import load_PascalVOC_pipeline, CIFARData
 import transformations
-from models import load_pascal_weighted_models, load_pascal_models, load_cifar100_models, load_best_cifar100, load_best_pascal
+from models import load_pascal_weighted_models, load_pascal_models, load_cifar100_models, load_best_cifar100, load_best_pascal, load_cifar_ensemble
 from conf_mat import ConfusionMatrix
 
 @hydra.main(version_base=None, config_path=".", config_name="tta")
@@ -58,7 +58,7 @@ def run(cfg: DictConfig):
     else:
         optimiser = None
 
-    for i in range(cfg.n_seeds):
+    for i in [12345, 52981, 80462]:
 
         # Optimization method
         optimized_pipeline, model_idx = optimiser(
@@ -83,19 +83,7 @@ def run(cfg: DictConfig):
                 f"selected model: {model_idx}\n"
                 f"{optimized_pipeline}"
             )
-
-        # for when using only one model
-#        confmat = ConfusionMatrix(21)
-#        for images, lbl in test_samples:
-#            adjusted_images = adjust_brightness(images, 0.6)
-#            piped_images, piped_lbls = optimized_pipeline(adjusted_images, lbl)
-#            model_pred = model_lib[0](torch.Tensor(piped_images))
-#            model_pred = model_pred['out'].detach().numpy()
-#            print(model_pred.shape, piped_lbl.shape)
-#            confmat.update(torch.Tensor(piped_lbls.flatten()), torch.Tensor(model_pred.argmax(1).flatten()))
-#        print("Best performance on testset without penalty:")
-#        print(confmat)
-
+        
         # for when using an ensemble
         if task == 'CIFAR':
             scores = []
