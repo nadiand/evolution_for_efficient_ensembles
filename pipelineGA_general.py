@@ -2,7 +2,8 @@ import numpy as np
 import logging
 from pipeline_evaluator import Evaluator
 from image_pipeline import ImagePipeline
-
+import time
+import torch
 
 # Candidate class that contains the parameters and order
 class Candidate:
@@ -81,7 +82,6 @@ def initialize_population(population_size, mean, sigma, resize_cfg, param_shape,
 # Evaluates every candidate in the population on the problem
 def evaluate_population(population, problem):
     indices = np.random.randint(0, 15, size=3)
-    print(f"indices are {indices}")
     for candidate in population:
         fitness = problem(*candidate(), np.array(indices))
         candidate.set_fitness(fitness)
@@ -150,6 +150,9 @@ def optimize_Sequential_ES(
 ):
 #    pipeline_cfg = [cfg.augs] # if cfg.use_both_lighting else [cfg.augs]
 
+    np.random.seed(seed=seed)
+    torch.manual_seed(seed)
+
     evaluator = Evaluator(train_dataset, scoring_funcion, use_pseudo_label)
 
     init_vals = np.array([
@@ -192,7 +195,10 @@ def optimize_Sequential_ES(
 
     logging.info(f"Generation: 0, best fitness: {best_candidate.fitness}, model: {best_candidate.model_idx}")
 
+    time_per_epoch = 0
+    fitness_evolution = []
     for i in range(n_gen):
+        start_epoch = time.time()
         offspring = sample_params(population, offspring_size, sigmas, resize_cfg, bounds, N_models, change_model_p, optimise_order)
         offspring = evaluate_population(offspring, problem)
         best_candidate, population = select(population, population_size, offspring)
@@ -204,6 +210,14 @@ def optimize_Sequential_ES(
         # Decrease step size
         sigmas *= 0.9
         change_model_p *= 0.9
+
+        fitness_evolution.append(best_candidate.fitness)
+        end_epoch = time.time()
+        time_per_epoch += (end_epoch - start_epoch)
+
+    print(f"Total time it took to do {n_gen} epochs: {time_per_epoch}")
+    print(f"Time it took to do one epoch: {time_per_epoch/n_gen}")
+    print(f"Fitness evolution: {fitness_evolution}")
 
     pipeline = ImagePipeline.build_pipeline(
         pipeline_cfg[0], best_candidate.params, best_candidate.factor, augment_mask=augment_mask,
