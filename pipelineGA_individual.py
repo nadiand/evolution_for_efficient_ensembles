@@ -2,6 +2,8 @@ import numpy as np
 import logging
 from pipeline_evaluator_individual import Evaluator
 from image_pipeline import ImagePipeline
+import time
+import torch
 
 
 # Candidate class that contains the parameters and order
@@ -81,6 +83,11 @@ def initialize_population(population_size, mean, sigma, resize_cfg, param_shape,
         new_params[pipeline_to_optimise] = parameter_samples[pop]
         new_factors[pipeline_to_optimise] = factors[pop]
         new_population.append(Candidate(new_params, order, new_factors, pipeline_to_optimise)) # model_idx_samples[pop]))
+    new_params = params_sofar.copy()
+    new_factors = factors_sofar.copy()
+    new_params[pipeline_to_optimise] = mean
+    new_factors[pipeline_to_optimise] = 1.0
+    new_population.append(Candidate(new_params, np.tile(np.arange(param_shape[1]), (param_shape[0], 1)), new_factors))
     return new_population
 
 # Evaluates every candidate in the population on the problem
@@ -153,6 +160,9 @@ def optimize_Sequential_ES(
 ):
 #    pipeline_cfg = [cfg.augs] # if cfg.use_both_lighting else [cfg.augs]
 
+    np.random.seed(seed=seed)
+    torch.manual_seed(seed)
+
     evaluator = Evaluator(train_dataset, scoring_funcion, use_pseudo_label)
 
     init_vals = np.array([
@@ -178,17 +188,15 @@ def optimize_Sequential_ES(
 
     bounds = (lbounds, ubounds)
     # Hyperparameters
-    n_gen = N_models*5 #cfg.optimization["n_gen"]
-    population_size = 3 #15 #cfg.optimization["pop_size"]
-    offspring_size = 3 #15 #cfg.optimization["offspring_size"]
+    n_gen = N_models*10 #cfg.optimization["n_gen"]
+    population_size = 15 #cfg.optimization["pop_size"]
+    offspring_size = 15 #cfg.optimization["offspring_size"]
 
     problem = SimpleProblem(model_lib, evaluator, pipeline_cfg, param_shape, augment_mask, use_both_lighting)
 
     # Initialize and evaluate population
     population = initialize_population(population_size + offspring_size, init_vals, sigmas, resize_cfg,
                                        param_shape, N_models, bounds, optimise_ensemble, optimise_order, 0, [None]*N_models, [None]*N_models)
-
-#    population.append(Candidate(init_vals, np.tile(np.arange(param_shape[1]), (param_shape[0], 1)), 1.0, 0)) # TODO
 
     for pop in population:
         logging.info(f"individual with {pop.params} and {pop.factors}")
@@ -199,7 +207,10 @@ def optimize_Sequential_ES(
     logging.info(f"Generation: 0, best fitness: {best_candidate.fitness}, model: {best_candidate.model_idx}")
 
     pipeline_to_optimise = 0
+    time_per_epoch = 0
+    fitness_evolution = []
     for i in range(n_gen):
+        start_epoch = time.time()
         offspring = sample_params(population, offspring_size, sigmas, resize_cfg, bounds, N_models, change_model_p, optimise_order, pipeline_to_optimise)
         offspring = evaluate_population(offspring, problem)
         best_candidate, population = select(population, population_size, offspring)
@@ -222,6 +233,14 @@ def optimize_Sequential_ES(
             population = evaluate_population(population, problem)
             for pop in population:
                 logging.info(f"individual with {pop.params} and {pop.factors}")
+
+        fitness_evolution.append(best_candidate.fitness)
+        end_epoch = time.time()
+        time_per_epoch += (end_epoch - start_epoch)
+
+    print(f"Total time it took to do {n_gen} epochs: {time_per_epoch}")
+    print(f"Time it took to do one epoch: {time_per_epoch/n_gen}")
+    print(f"Fitness evolution: {fitness_evolution}")
 
     pipelines = []
     for i in range(N_models):
