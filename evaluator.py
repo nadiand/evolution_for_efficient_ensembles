@@ -4,6 +4,8 @@ from torch.utils.data import DataLoader
 from data import CIFARData, load_PascalVOC
 import torchvision.transforms.functional as F
 import transformations
+from pipeline_evaluator_individual import maybe_rescale_prediction
+
 
 class Evaluator:
     def __init__(
@@ -149,7 +151,8 @@ class EvaluatorPredictions:
                 output = sum(all_outputs)
             else:
                 output = models[0][counter]
-            loss = self.score_fn(torch.Tensor(output), torch.Tensor(lbl).to(torch.long).reshape((batch_size,520,520)), ignore_index=255)
+            output = maybe_rescale_prediction(output, lbl.shape)
+            loss = self.score_fn(torch.Tensor(output), torch.Tensor(lbl).to(torch.long).squeeze(dim=1), ignore_index=255)
             scores.append(loss.item())
 
         score = np.mean(scores) + penalty
