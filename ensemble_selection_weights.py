@@ -18,6 +18,7 @@ from torchmetrics import Accuracy
 from torch.nn import CrossEntropyLoss as CEL
 import torchvision.transforms.functional as F
 import transformations
+from pipeline_evaluator_individual import maybe_rescale_prediction
 
 
 def initialize_population(population_size, N_models, threshold, history, g):
@@ -216,7 +217,10 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
     print(f"Time it took to do one epoch: {time_per_epoch/n_gen}")
     print(f"Fitness evolution: {fitness_evolution}")
 
-    models = load_pascal_models()
+    if nr_classes == 21:
+        models = load_pascal_models()
+    else:
+        models = load_cifar100_models()
     ensemble, weights = [], []
     for i, n in enumerate(best_candidate.voting_weights):
         if n:
@@ -247,6 +251,7 @@ def eval_best_segmentation(best_candidate, segmentors, evaluator, pipeline=None)
             model_weights.fill(norm_weights[i])
             all_outputs.append(model_pred['out'].detach().numpy() * model_weights)
         output = sum(all_outputs)
+        output = maybe_rescale_prediction(output, lbl.shape)
         confmat.update(lbl.flatten(), output.argmax(1).flatten())
     print("Best performance on testset without penalty:")
     print(confmat)
@@ -264,6 +269,7 @@ def eval_best_classification(best_candidate, classifiers, nr_classes, evaluator)
             model_weights.fill(norm_weights[i])
             all_outputs.append(model_pred * model_weights)
         output = sum(all_outputs)
+        output = maybe_rescale_prediction(output, lbl.shape)
         scores.append(accuracy(target=torch.Tensor(lbl), preds=torch.Tensor(output)))
     score = np.mean(scores)
     print(f"Best accuracy on testset without penalty: {score}")
