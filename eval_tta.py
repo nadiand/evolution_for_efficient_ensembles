@@ -71,7 +71,7 @@ def run(cfg: DictConfig):
             augment_mask=cfg.augment_mask,
             use_both_lighting=cfg.use_both_lighting,
             use_pseudo_label=False,
-#            optimise_order=True, #cfg.optimise_order,
+#            optimise_order=True,
 #            optimise_ensemble=True,
         )
 
