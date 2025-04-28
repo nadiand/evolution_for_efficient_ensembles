@@ -198,8 +198,8 @@ def optimize_Sequential_ES(
     population = initialize_population(population_size + offspring_size, init_vals, sigmas, resize_cfg,
                                        param_shape, N_models, bounds, optimise_ensemble, optimise_order, 0, [None]*N_models, [None]*N_models)
 
-    for pop in population:
-        logging.info(f"individual with {pop.params} and {pop.factors}")
+    # for pop in population:
+    #     logging.info(f"individual with {pop.params} and {pop.factors}")
 
     population = evaluate_population(population, problem)
     best_candidate, population = select(population, population_size)
@@ -226,13 +226,13 @@ def optimize_Sequential_ES(
         sigmas *= 0.9
         change_model_p *= 0.9
 
-        if ((i+1) % 5 == 0) and (i < n_gen-1):
+        if ((i+1) % 10 == 0) and (i < n_gen-1):
             pipeline_to_optimise += 1
             population = initialize_population(population_size + offspring_size, init_vals, sigmas, resize_cfg,
                                        param_shape, N_models, bounds, optimise_ensemble, optimise_order, pipeline_to_optimise, best_candidate.params, best_candidate.factors)
             population = evaluate_population(population, problem)
-            for pop in population:
-                logging.info(f"individual with {pop.params} and {pop.factors}")
+            # for pop in population:
+            #     logging.info(f"individual with {pop.params} and {pop.factors}")
 
         fitness_evolution.append(best_candidate.fitness)
         end_epoch = time.time()
