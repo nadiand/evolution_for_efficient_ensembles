@@ -181,7 +181,10 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
     if load_preds:
         evaluator = EvaluatorPredictions(nr_classes, scoring_fn, penalty, use_pseudo_label)
     else:
-        evaluator = EvaluatorSegmentation(nr_classes, scoring_fn, penalty, use_pseudo_label)
+        if nr_classes == 21:
+            evaluator = EvaluatorSegmentation(nr_classes, scoring_fn, penalty, use_pseudo_label)
+        else:
+            evaluator = Evaluator(nr_classes, scoring_fn, penalty, use_pseudo_label)
     problem = SimpleProblem(model_lib, evaluator, pipeline, augment_mask, use_both_lighting)
 
     n_gen = 15
@@ -229,16 +232,18 @@ def select_ensemble(model_lib, nr_classes, scoring_fn, seed=0, pipeline = None,
     if nr_classes == 21:
         eval_best_segmentation(weights, ensemble, evaluator, pipeline)
     else:
-        eval_best_classification(weights, ensemble, nr_classes, evaluator)
+        eval_best_classification(weights, ensemble, nr_classes, evaluator, pipeline)
     return best_candidate.voting_weights
 
 
 def eval_best_segmentation(best_candidate, segmentors, evaluator, pipeline=None):
     confmat = ConfusionMatrix(21)
     norm_weights = [float(w)/sum(best_candidate) for w in best_candidate]
+    inference_time = 0
     for images, lbl in evaluator.test_loader:
         adjusted_images = transformations.adjust_brightness(images, 0.5)
-
+        
+        start_time = time.time()
         if pipeline is not None:
             adjusted_images, lbl_r = pipeline(adjusted_images, lbl)
             adjusted_images = torch.Tensor(adjusted_images)
@@ -246,32 +251,48 @@ def eval_best_segmentation(best_candidate, segmentors, evaluator, pipeline=None)
         
         all_outputs = []
         for i, s in enumerate(segmentors):
-            model_pred = s(adjusted_images)
-            model_weights = np.empty_like(model_pred)
-            model_weights.fill(norm_weights[i])
-            all_outputs.append(model_pred['out'].detach().numpy() * model_weights)
-        output = sum(all_outputs)
-        output = maybe_rescale_prediction(output, lbl.shape)
-        confmat.update(lbl.flatten(), output.argmax(1).flatten())
-    print("Best performance on testset without penalty:")
-    print(confmat)
-
-
-def eval_best_classification(best_candidate, classifiers, nr_classes, evaluator):
-    scores = []
-    accuracy = Accuracy(task='multiclass', num_classes=nr_classes)
-    norm_weights = [float(w)/sum(best_candidate) for w in best_candidate]
-    for images, lbl in evaluator.test_loader:
-        all_outputs = []
-        for i, m in enumerate(classifiers):
-            model_pred = m(images).detach().numpy()
+            model_pred = s(adjusted_images)['out'].detach().numpy()
             model_weights = np.empty_like(model_pred)
             model_weights.fill(norm_weights[i])
             all_outputs.append(model_pred * model_weights)
         output = sum(all_outputs)
         output = maybe_rescale_prediction(output, lbl.shape)
+        end_time = time.time()
+        inference_time += (end_time - start_time)
+        
+        confmat.update(lbl.flatten(), output.argmax(1).flatten())
+    print(f"Inference time: {inference_time/len(evaluator.test_loader)}")
+    print("Best performance on testset without penalty:")
+    print(confmat)
+
+
+def eval_best_classification(best_candidate, classifiers, nr_classes, evaluator, pipeline):
+    scores = []
+    accuracy = Accuracy(task='multiclass', num_classes=nr_classes)
+    norm_weights = [float(w)/sum(best_candidate) for w in best_candidate]
+    inference_time = 0
+    for images, lbl in evaluator.test_loader:
+        adjusted_images = transformations.adjust_brightness(images, 0.5)
+        
+        start_time = time.time()
+        if pipeline is not None:
+            adjusted_images, lbl_r = pipeline(adjusted_images, lbl)
+            adjusted_images = torch.Tensor(adjusted_images)
+            lbl = torch.Tensor(lbl)
+        
+        all_outputs = []
+        for i, m in enumerate(classifiers):
+            model_pred = m(adjusted_images).detach().numpy()
+            model_weights = np.empty_like(model_pred)
+            model_weights.fill(norm_weights[i])
+            all_outputs.append(model_pred * model_weights)
+        output = sum(all_outputs)
+        output = maybe_rescale_prediction(output, lbl.shape)
+        end_time = time.time()
+        inference_time += (end_time - start_time)
         scores.append(accuracy(target=torch.Tensor(lbl), preds=torch.Tensor(output)))
     score = np.mean(scores)
+    print(f"Inference time: {inference_time/len(evaluator.test_loader)}")
     print(f"Best accuracy on testset without penalty: {score}")
 
 
@@ -373,8 +394,8 @@ def evaluate_classification(nr_classes, classifiers):
 if __name__ == "__main__":
     nr_classes = 21
     load_preds = True
-    pipeline = None #ImagePipeline.build_pipeline(pipeline_cfg=[{'name': 'adjust_brightness', 'args':[{'name':'delta'}]}, {'name': 'adjust_contrast', 'args': [{'name':'alpha'}]}], \
-                     #                       params=np.array([[0.875191832, 1.5]]), resize_factor=1.12294626, augment_mask=True, order=np.array([[0, 1]]))
+    pipeline = ImagePipeline.build_pipeline(pipeline_cfg=[{'name': 'adjust_brightness', 'args':[{'name':'delta'}]}, {'name': 'adjust_gamma', 'args':[{'name':'gamma'}]}, {'name': 'apply_sharpen', 'args': [{'name':'alpha'}]}, {'name': 'adjust_contrast', 'args': [{'name':'alpha'}]}], \
+                                            params=np.array([[0.01402970461522643, 1.4022010709096389, 1.1097474144235122, 0.999552085630809]]), resize_factor=1.230128012213738, augment_mask=True, order=np.array([[0, 1, 2, 3]]))
     scoring_fn = nn.functional.cross_entropy
 
     best_voting_weights = select_ensemble(model_lib=load_models(nr_classes, load_preds=load_preds), nr_classes=nr_classes, scoring_fn=scoring_fn, seed=0, 
