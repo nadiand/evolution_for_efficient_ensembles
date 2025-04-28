@@ -124,6 +124,7 @@ def load_PascalVOC():
                 v2.ToImage(),
                 v2.ToDtype(torch.float, scale=True),
                 v2.PILToTensor(),
+                # v2.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 1.5)),
                 v2.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
             ]
         )
@@ -168,7 +169,7 @@ def load_PascalVOC_pipeline():
     small_dataset = Subset(dataset, range(rand_start, rand_start + subset_size))
     val_dataloader = DataLoader(
         small_dataset,
-        batch_size=30,
+        batch_size=subset_size,
         num_workers=2,
         drop_last=True,
         pin_memory=True,
